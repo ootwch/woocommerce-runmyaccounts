@@ -744,6 +744,18 @@ if ( !class_exists('RMA_WC_API') ) {
                 $status  = 'error';
                 $message = '[' . self::first_key_of_array( $response ) . '] ' . reset( $response ); // get value of first key = return message
 
+				// add order note to each order
+				foreach ( $order_ids as $order_id ) {
+
+					$order          = wc_get_order(  $order_id );
+					$note           = sprintf( esc_html_x( 'Invoice creation failed: %s', 'Order Note', 'rma-wc'), __($message, 'wma-wc'));
+					$order->add_order_note( $note );
+
+					unset( $order );
+
+				}
+
+
                 $return = false;
 
             }
