@@ -279,6 +279,94 @@ if ( !class_exists('RMA_WC_API') ) {
             }
         }
 
+
+        /**
+		 * Read invoice list from RMA
+         *
+		 * @return mixed
+		 */
+		public function get_invoice_status() {
+
+		    if( !RMA_MANDANT || !RMA_APIKEY ) {
+
+                $log_values = array(
+                    'status' => 'error',
+                    'section_id' => '',
+                    'section' => esc_html_x('Get Invoice', 'Log Section', 'rma-wc'),
+                    'mode' => self::rma_mode(),
+                    'message' => esc_html__('Missing API data', 'rma-wc') );
+
+                self::write_log($log_values);
+
+                return false;
+
+            }
+
+			$url       = self::get_caller_url() . RMA_MANDANT . '/invoices?api_key=' . RMA_APIKEY;
+            $response  = wp_remote_get( $url );
+
+
+
+            // Check response code
+			if ( 200 <> wp_remote_retrieve_response_code( $response ) ){
+
+			    $message = esc_html__( 'Response Code', 'rma-wc') . ' '. wp_remote_retrieve_response_code( $response );
+                $message .= ' '. wp_remote_retrieve_response_message( $response );
+
+                $response = (array) $response['http_response'];
+
+                foreach ( $response as $object ) {
+                    $message .= ' ' . $object->url;
+                    break;
+                }
+
+                $log_values = array(
+                    'status' => 'error',
+                    'section_id' => '',
+                    'section' => esc_html_x('Get Invoice', 'Log Section', 'rma-wc'),
+                    'mode' => self::rma_mode(),
+                    'message' => $message );
+
+                self::write_log($log_values);
+
+                return false;
+
+			}
+			else {
+                libxml_use_internal_errors( true );
+
+                $body = wp_remote_retrieve_body( $response );
+                $xml  = simplexml_load_string( $body );
+
+				if ( !$xml ) {
+                    // ToDO: Add this information to error log
+					foreach( libxml_get_errors() as $error ) {
+                        echo "\t", $error->message;
+					}
+
+					return false;
+
+				}
+				else {
+                    // Parse response
+					$array = json_decode( json_encode( (array)$xml ), TRUE);
+
+					// Transform into array
+                    $status_array = array();
+					foreach ( $array as $value ) {
+
+                        foreach ($value as $key => $invoice ) {
+                            $number = $invoice['invnumber'];
+                            $status = $invoice['status'];
+
+                            $status_array[$number] = $status;
+						}
+					}
+					return ( !empty( $status_array ) ? $status_array : false );
+				}
+			}
+		}
+
         /**
          * Collect data for invoice
          *

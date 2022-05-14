@@ -45,6 +45,7 @@ if (!class_exists('RMA_WC_Backend')) {
          */
         static function deactivate() {
             wp_clear_scheduled_hook( 'run_my_accounts_collective_invoice' );
+            wp_clear_scheduled_hook( 'update_order_status' );
         }
 
 	    /**
