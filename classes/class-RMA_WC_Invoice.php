@@ -33,9 +33,12 @@ class RMA_WC_Invoice {
 
                 // Add endpoints
                 add_action( 'init', array( $this, 'my_invoices_endpoint' ) );
-                add_filter( 'query_vars', array( $this, 'my_invoices_query_vars', 0 ) );
+                add_filter( 'query_vars', array( $this, 'my_invoices_query_vars' ) );
                 // Menu entry
                 add_filter( 'woocommerce_account_menu_items', array( $this, 'my_invoices_my_account_menu_items' ) );
+                add_action( 'woocommerce_account_invoices_endpoint', array( $this, 'my_invoices_endpoint_content' ) );
+                // Template for invoice list
+                add_filter( 'theme_page_templates', array( $this, 'add_account_invoices_template' ) );
 
 
     }
@@ -147,7 +150,7 @@ class RMA_WC_Invoice {
          * @see https://developer.wordpress.org/reference/functions/add_rewrite_endpoint/
          */
         function my_invoices_endpoint() {
-            add_rewrite_endpoint( 'my-invoices', EP_ROOT | EP_PAGES );
+            add_rewrite_endpoint( 'invoices', EP_ROOT | EP_PAGES );
         }
 
         /**
@@ -157,7 +160,7 @@ class RMA_WC_Invoice {
          * @return array
          */
         function my_invoices_query_vars( $vars ) {
-            $vars[] = 'my-invoices-endpoint';
+            $vars[] = 'invoices';
 
             return $vars;
         }
@@ -176,5 +179,43 @@ class RMA_WC_Invoice {
         }
 
 
+        /**
+         * Add page templates.
+         *
+         * @param  array  $templates  The list of page templates
+         *
+         * @return array  $templates  The modified list of page templates
+         */
+        function add_account_invoices_template ( $templates ) {
+            $templates[plugin_dir_path( __FILE__ ) . 'templates/invoices.php'] = __( 'Page Template From Plugin', 'text-domain' );
 
+            return $templates;
         }
+
+
+        /**
+         * Endpoint HTML content.
+         */
+        function my_invoices_endpoint_content() {
+
+            $invoice_data = array();
+
+            $user_id = get_current_user_id();
+            $rma_customer_id = get_user_meta( $user_id, 'rma_customer', true );
+
+            if( ! empty( $rma_customer_id ) ) {
+
+                $RMA_WC_API = new RMA_WC_API();
+
+                $customer_info = $RMA_WC_API->get_customer( $rma_customer_id );
+                $invoices = $RMA_WC_API->get_customer_invoices( $rma_customer_id );
+
+                $invoice_data[ 'customer_info'] = $customer_info;
+                $invoice_data['invoices'] = $invoices;
+
+                unset( $RMA_WC_API );
+            }
+
+        load_template(plugin_dir_path(__FILE__) . '../templates/invoices.php', null, $invoice_data); // TODO: Do real templating
+        }
+    }
