@@ -39,6 +39,8 @@ class RMA_WC_Invoice {
                 add_action( 'woocommerce_account_invoices_endpoint', array( $this, 'my_invoices_endpoint_content' ) );
                 // Template for invoice list
                 add_filter( 'theme_page_templates', array( $this, 'add_account_invoices_template' ) );
+                // PDF Download
+                add_action( 'template_redirect', array( $this, 'invoice_pdf_download' ) );
 
 
     }
@@ -218,4 +220,35 @@ class RMA_WC_Invoice {
 
         load_template(plugin_dir_path(__FILE__) . '../templates/invoices.php', null, $invoice_data); // TODO: Do real templating
         }
+
+        /**
+         * Endpoint PDF Download
+         * 
+         * Requires a nonce _wpnonce, 'download-pdf-nonce-' . $invoice_number
+         * 
+         */
+        function invoice_pdf_download() {
+
+            $path = wp_parse_url( $_SERVER['REQUEST_URI'], PHP_URL_PATH );
+            if ( '/my-account/invoices/pdf' !== dirname( $path )) {
+                return;
+            }
+
+            $invoice_number = strtoupper( sanitize_key( basename( $path ) ) );
+            $nonce = $_REQUEST['_wpnonce'];
+            if ( ! wp_verify_nonce( $nonce, 'download-pdf-nonce-' . $invoice_number ) ) {
+                // This nonce is not valid.
+                wp_die( __( 'Security check failed', 'textdomain' ) );
+            } else {
+                // The nonce was valid.
+                $RMA_WC_API = new RMA_WC_API();
+                $pdf_data = $RMA_WC_API->get_invoice_pdf( $invoice_number );
+                unset( $RMA_WC_API );
+
+                header("Content-Type: application/pdf");
+                echo $pdf_data;
+                exit;
+            }
+        }
+
     }

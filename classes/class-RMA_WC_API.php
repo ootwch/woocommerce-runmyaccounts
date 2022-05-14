@@ -268,7 +268,7 @@ if ( !class_exists('RMA_WC_API') ) {
             }
         }
 
- /**
+        /**
          * Read invoices of one customer
          * 
          */
@@ -342,7 +342,102 @@ if ( !class_exists('RMA_WC_API') ) {
             }
         }
 
+        /**
+         * Fetch PDF File for invoice
+         * 
+         */
+        public function get_invoice_pdf( $rma_invoice_number )
+        {
+            if( !RMA_MANDANT || !RMA_APIKEY ) {
 
+                $log_values = array(
+                    'status' => 'error',
+                    'section_id' => '',
+                    'section' => esc_html_x('Get Invoice PDF', 'Log Section', 'rma-wc'),
+                    'mode' => self::rma_mode(),
+                    'message' => esc_html__('Missing API data', 'rma-wc') );
+
+                self::write_log($log_values);
+
+                return false;
+
+            }
+
+            $requested_rma_invoice_number = strtoupper( sanitize_key( $rma_invoice_number ) );
+
+            // Verify that the current user is supposed to have access to this invoice.
+            $url       = self::get_caller_url() . RMA_MANDANT . '/invoices/' . $requested_rma_invoice_number;
+            $url      .= '?api_key=' . RMA_APIKEY;
+            $xml_response  = wp_remote_get( $url );
+            libxml_use_internal_errors( true );
+
+            $body = wp_remote_retrieve_body( $xml_response );
+            $status = wp_remote_retrieve_response_code( $xml_response );
+            $status_message = wp_remote_retrieve_response_message( $xml_response );
+            $xml  = simplexml_load_string( $body );
+            $invoice = json_decode( json_encode( (array)$xml ), TRUE);
+            // wp_die(json_encode($status_message));
+            $rma_user_remote = $invoice['customer']['customernumber'];
+            $rma_user_current = get_user_meta( get_current_user_id(), 'rma_customer', true );
+
+            // User does not match or invoice does not exist for this user
+            if ( $rma_user_remote !== $rma_user_current ) {
+                $log_values = array(
+                    'status' => 'error',
+                    'section_id' => '',
+                    'section' => esc_html_x('Get Invoice PDF', 'Log Section', 'rma-wc'),
+                    'mode' => self::rma_mode(),
+                    'message' => 'Download failed / invoice does not exist for this user' );
+
+                self::write_log($log_values);
+                return false;
+            }
+
+            $url       = self::get_caller_url() . RMA_MANDANT . '/invoices/' . $requested_rma_invoice_number. '/pdf';
+            $url      .= '?api_key=' . RMA_APIKEY;
+            $response  = wp_remote_get( $url );
+
+            // Check response code
+			if ( 200 <> wp_remote_retrieve_response_code( $response ) ){
+
+			    $message = esc_html__( 'Response Code', 'rma-wc') . ' '. wp_remote_retrieve_response_code( $response );
+                $message .= ' '. wp_remote_retrieve_response_message( $response );
+
+                $response = (array) $response['http_response'];
+
+                foreach ( $response as $object ) {
+                    $message .= ' ' . $object->url;
+                    break;
+                }
+
+                $log_values = array(
+                    'status' => 'error',
+                    'section_id' => '',
+                    'section' => esc_html_x('Get Invoice PDF', 'Log Section', 'rma-wc'),
+                    'mode' => self::rma_mode(),
+                    'message' => $message );
+
+                self::write_log($log_values);
+
+                return false;
+
+			}
+			else {
+
+                libxml_use_internal_errors( true );
+
+                $body = wp_remote_retrieve_body( $response );
+                $content_type = wp_remote_retrieve_header( $response, 'content-type' );
+
+				if ( 'application/pdf' !== $content_type ) {
+					// ToDo: Add this information to error log
+					return false;
+				}
+				else {
+					return ( !empty( $body ) ? $body : false );
+                }
+            }
+        }
 
         /**
          * Read parts list from RMA

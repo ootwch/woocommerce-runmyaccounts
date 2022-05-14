@@ -80,7 +80,15 @@ $invoice_columns = array(
 
 							<?php elseif ( 'pdf' === $column_id ) : ?>
 								<?php
-								echo 'Download';
+								$nonce = wp_create_nonce( 'download-pdf-nonce-' . strtoupper( $invoice['invnumber'] ) );
+								$download_link  = '<a href="/my-account/invoices/pdf/' . $invoice['invnumber'];
+								$download_link .= '?_wpnonce=' . $nonce . '';
+								$download_link .= '" download="' . $invoice['invnumber'] . '.pdf"';
+								$download_link .= 'target="_blank"';
+								$download_link .= '>';
+								$download_link .= 'Download PDF';
+								$download_link .= '</a>';
+								echo $download_link;
 								?>
 							<?php endif; ?>
 						</td>
