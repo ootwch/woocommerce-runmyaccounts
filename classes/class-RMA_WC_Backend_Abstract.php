@@ -133,19 +133,6 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
                 add_filter( 'handle_bulk_actions-edit-shop_order', array( $this, 'create_invoice_handle_bulk_action_edit_shop_order'), 10, 3 );
                 add_action( 'admin_notices', array( $this, 'create_invoice_bulk_action_admin_notice' ) );
 
-
-                // allow order query by invoice number.
-                add_filter( 'woocommerce_order_data_store_cpt_get_orders_query', array( $this, 'handle_invoice_number_query_var' ), 10, 2 );
-
-                // update order status once per hour and display it on the admin and user order overview
-                add_filter( 'init', array( $this, 'maybe_create_schedule_update_order_status_event' ) );
-                add_action( 'update_order_status', array( $this, 'hourly_update_order_status' ) );
-
-                // add status column to order page
-                add_filter( 'manage_edit-shop_order_columns', array( $this, 'add_status_column_to_order_table' ) );
-                add_action( 'manage_shop_order_posts_custom_column', array( $this, 'add_status_value_to_order_table_row' ) );
-
-
             }
 
             // if WooCommerce Germanized is not active add our own custom meta field title
@@ -450,100 +437,6 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
             }
 
             return false;
-
-        }
-
-        /**
-         * Allow querying orders by invoice number.
-         *
-         * https://github.com/woocommerce/woocommerce/wiki/wc_get_orders-and-WC_Order_Query#adding-custom-parameter-support
-         * Handle a custom 'customvar' query var to get orders with the 'customvar' meta.
-         * 
-         * @param array $query - Args for WP_Query.
-         * @param array $query_vars - Query vars from WC_Order_Query.
-         * @return array modified $query
-         */
-        function handle_invoice_number_query_var( $query, $query_vars ) {
-            if ( ! empty( $query_vars['invoice_number'] ) ) {
-                $query['meta_query'][] = array(
-                    'key' => '_rma_invoice',
-                    'value' => esc_attr( $query_vars['invoice_number'] ),
-                );
-            }
-
-            return $query;
-        }
-
-        /**
-         * Create scheduler for hourly order status update.
-         *
-         */
-        public function maybe_create_schedule_update_order_status_event( ) {
-            // Schedules the event if it's NOT already scheduled.
-            if ( ! wp_next_scheduled ( 'update_order_status' ) ) {
-                wp_schedule_event( time(), 'hourly', 'update_order_status' );
-            }
-        }
-
-        /**
-         * Update order status
-         * 
-         */
-        public function update_order_status( ) {
-            $RMA_WC_API = new RMA_WC_API();
-            $status_array = $RMA_WC_API->get_invoice_status();
-            foreach( $status_array as $invoice_number=>$status) {
-                $orders = wc_get_orders( array( 'invoice_number' =>  $invoice_number ) );
-                foreach( $orders as $order ) {
-                    $debug_var = (json_encode(array(
-                        'id' => $order->get_id(),
-                        'inv'=> $invoice_number,
-                        'stat'=>$status,
-                        'array'=>$status_array
-                    )));
-
-                    $order->update_meta_data( '_rma_invoice_status', sanitize_text_field( $status ) );
-                    $order->update_meta_data('_rma_invoice_status_timestamp', current_datetime()->format('c') );
-                    $order->save_meta_data();
-                }
-            }
-
-            unset( $RMA_WC_API );
-        }
-
-
-        /**
-         * Add status column to order table
-         *
-         * @param $columns
-         *
-         * @return array
-         */
-        public function add_status_column_to_order_table( $columns ) {
-
-            // $this->update_order_status();
-
-            $columns = RMA_WC_Frontend::array_insert( $columns, 'rma_invoice', 'rma_invoice_status', __( 'Invoice Status', 'rma-wc' ) );
-
-            return $columns;
-        }
-
-        public function add_status_value_to_order_table_row( $column ) {
-
-            global $post;
-
-            switch ( $column ) {
-                case 'rma_invoice_status' :
-                    echo '<mark class="order-status" title="';
-                    echo __( 'Last updated: ', 'rma-wc' );
-                    echo wp_date( get_option( 'date_format' ),strtotime( get_post_meta( $post->ID, '_rma_invoice_status_timestamp', true ) ) );
-                    echo '"><span>';
-                    echo get_post_meta( $post->ID, '_rma_invoice_status', true );
-                    echo "</span></mark>";
-
-                default:
-            }
-
 
         }
 

@@ -819,6 +819,8 @@ if ( !class_exists('RMA_WC_API') ) {
                     $order->add_order_note( $note );
 
                     update_post_meta( $order_id, '_rma_invoice', $invoice_number );
+                    update_post_meta( $order_id, '_rma_invoice_status', sanitize_text_field( __( 'NEW', 'wma-wc' ) ) );
+                    update_post_meta( $order_id, '_rma_invoice_status_timestamp', current_datetime()->format('c') );
 
                     unset( $order );
 

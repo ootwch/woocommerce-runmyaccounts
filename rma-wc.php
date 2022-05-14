@@ -77,3 +77,6 @@ if ( count( array_intersect( $required_plugins, $active_plugins ) ) !== count( $
     $RMA_RnB = new RMA_WC_Rental_And_Booking();
 
 }
+
+// RMA Invoice Status
+$s = new RMA_WC_Invoice();
