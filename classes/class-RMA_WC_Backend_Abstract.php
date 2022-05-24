@@ -373,7 +373,8 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
                             2 => __('Ms.', 'rma-wc')
                         )
                     ),
-                    'description' => ''
+                    'description' => '',
+                    'class' => 'rma_title'
                 );
             }
 
@@ -388,7 +389,8 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
 				    'label'       => __( 'Customer', 'rma-wc' ),
 				    'type'		  => 'select',
 				    'options'	  => array('' => __( 'Error while connecting to RMA. Please check your settings.', 'rma-wc' )),
-				    'description' => __( 'Select the corresponding RMA customer for this account.', 'rma-wc' )
+				    'description' => __( 'Select the corresponding RMA customer for this account.', 'rma-wc' ),
+                    'class'       => 'rma_customer'
 			    );
 
 			    return $fields;
@@ -400,7 +402,8 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
 			    'label'       => __( 'Customer', 'rma-wc' ),
 			    'type'		  => 'select',
 			    'options'	  => $options,
-			    'description' => __( 'Select the corresponding RMA customer for this account.', 'rma-wc' )
+			    'description' => __( 'Select the corresponding RMA customer for this account.', 'rma-wc' ),
+                'class'       => 'rma_customer'
 		    );
 
 		    if ( !empty( $RMA_WC_API )) unset( $RMA_WC_API );
@@ -408,13 +411,15 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
 		    $fields[ 'rma' ][ 'fields' ][ 'rma_billing_account' ] = array(
 			    'label'       => __( 'Receivables Account', 'rma-wc' ),
 			    'type'		  => 'input',
-			    'description' => __( 'The receivables account has to be available in RMA. Leave it blank to use default value 1100.', 'rma-wc' )
+			    'description' => __( 'The receivables account has to be available in RMA. Leave it blank to use default value 1100.', 'rma-wc' ),
+                'class'       => 'rma_customer'
 		    );
 
 		    $fields[ 'rma' ][ 'fields' ][ 'rma_payment_period' ] = array(
 			    'label'       => __( 'Payment Period', 'rma-wc' ),
 			    'type'		  => 'input',
-			    'description' => __( 'How many days has this customer to pay your invoice?', 'rma-wc' )
+			    'description' => __( 'How many days has this customer to pay your invoice?', 'rma-wc' ),
+                'class'       => 'rma_customer'
 		    );
 
 		    return $fields;

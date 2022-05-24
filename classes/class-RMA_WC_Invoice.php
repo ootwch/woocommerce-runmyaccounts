@@ -216,9 +216,12 @@ class RMA_WC_Invoice {
                 $invoice_data['invoices'] = $invoices;
 
                 unset( $RMA_WC_API );
+                load_template(plugin_dir_path(__FILE__) . '../templates/invoices.php', null, $invoice_data); // TODO: Do real templating
             }
+            else {
+                echo sprintf ('<div class="warning">%1s</div>', esc_html_e( 'This user does not have an account in the accounting system.', 'rma-wc' ));
 
-        load_template(plugin_dir_path(__FILE__) . '../templates/invoices.php', null, $invoice_data); // TODO: Do real templating
+            }
         }
 
         /**
@@ -227,7 +230,7 @@ class RMA_WC_Invoice {
          * Requires a nonce _wpnonce, 'download-pdf-nonce-' . $invoice_number
          * 
          */
-        function invoice_pdf_download() {
+        public function invoice_pdf_download() {
 
             $path = wp_parse_url( $_SERVER['REQUEST_URI'], PHP_URL_PATH );
             if ( '/my-account/invoices/pdf' !== dirname( $path )) {
@@ -244,8 +247,10 @@ class RMA_WC_Invoice {
                 $RMA_WC_API = new RMA_WC_API();
                 $pdf_data = $RMA_WC_API->get_invoice_pdf( $invoice_number );
                 unset( $RMA_WC_API );
-
+                
+                http_response_code(200);
                 header("Content-Type: application/pdf");
+                header('Content-Length: ' . mb_strlen($pdf_data, '8bit'));
                 echo $pdf_data;
                 exit;
             }

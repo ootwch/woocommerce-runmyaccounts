@@ -345,6 +345,9 @@ if ( !class_exists('RMA_WC_API') ) {
         /**
          * Fetch PDF File for invoice
          * 
+         * This function also verifies that the fetched invoice belongs
+         * to the current user.
+         * 
          */
         public function get_invoice_pdf( $rma_invoice_number )
         {
@@ -370,13 +373,10 @@ if ( !class_exists('RMA_WC_API') ) {
             $url      .= '?api_key=' . RMA_APIKEY;
             $xml_response  = wp_remote_get( $url );
             libxml_use_internal_errors( true );
-
             $body = wp_remote_retrieve_body( $xml_response );
-            $status = wp_remote_retrieve_response_code( $xml_response );
-            $status_message = wp_remote_retrieve_response_message( $xml_response );
             $xml  = simplexml_load_string( $body );
             $invoice = json_decode( json_encode( (array)$xml ), TRUE);
-            // wp_die(json_encode($status_message));
+
             $rma_user_remote = $invoice['customer']['customernumber'];
             $rma_user_current = get_user_meta( get_current_user_id(), 'rma_customer', true );
 

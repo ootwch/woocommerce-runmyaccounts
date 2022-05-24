@@ -104,7 +104,9 @@ $invoice_columns = array(
 
 	<?php if ( 1 < $max_num_pages ) : ?>
 		<div class="woocommerce-pagination woocommerce-pagination--without-numbers woocommerce-Pagination">
-			<?php if ( 1 !== $current_page ) : ?>
+			<?php 
+			echo '<span> '. __('Page', 'woocommerce-sailcom') . ' ' . strval($current_page) . ' / ' . strval($max_num_pages) . ' </span>';
+			if ( 1 !== $current_page ) : ?>
 				<a class="woocommerce-button woocommerce-button--previous woocommerce-Button woocommerce-Button--previous button" href="<?php echo esc_url( wc_get_endpoint_url( 'invoices', $current_page - 1 ) ); ?>"><?php esc_html_e( 'Previous', 'woocommerce' ); ?></a>
 			<?php endif; ?>
 
