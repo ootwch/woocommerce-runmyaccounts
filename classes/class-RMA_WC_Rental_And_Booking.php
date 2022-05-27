@@ -73,7 +73,7 @@ class RMA_WC_Rental_And_Booking {
             return $part;
 
         }
-
+        
         // Set the article to the rental article for all rental bookings.
         $settings     = get_option( 'wc_rma_settings' );
         $rental_booking_article = $settings[ 'rma-product-rnb-rental-article' ];
@@ -83,7 +83,9 @@ class RMA_WC_Rental_And_Booking {
         $order = wc_get_order( wc_get_order_id_by_order_item_id($item_id) );
         $item = $order->get_item( $item_id);
         $sku = $item->get_product()->get_sku();
-        $part[ 'projectnumber' ] = $sku;
+        if ( ! empty( $sku ) ) {
+            $part[ 'projectnumber' ] = $sku;
+        }
 
         // get values
         $days            = wc_get_order_item_meta( $item_id, '_return_hidden_days' );
