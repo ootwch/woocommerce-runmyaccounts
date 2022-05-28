@@ -74,15 +74,22 @@ class RMA_WC_Rental_And_Booking {
 
         }
         
+        $order = wc_get_order( wc_get_order_id_by_order_item_id($item_id) );
+        $item = $order->get_item( $item_id);
+        $item_product = $item->get_product();
+
+        // Bail if this is not a rental product.
+        if( ! $item_product->is_type( 'redq_rental' ) ) {
+            return $part;
+        }
+
         // Set the article to the rental article for all rental bookings.
         $settings     = get_option( 'wc_rma_settings' );
         $rental_booking_article = $settings[ 'rma-product-rnb-rental-article' ];
         $part[ 'partnumber' ] = $rental_booking_article;
 
         // Set the projectnumber to the sku for the rental articles
-        $order = wc_get_order( wc_get_order_id_by_order_item_id($item_id) );
-        $item = $order->get_item( $item_id);
-        $sku = $item->get_product()->get_sku();
+        $sku = $item_product->get_sku();
         if ( ! empty( $sku ) ) {
             $part[ 'projectnumber' ] = $sku;
         }
@@ -96,14 +103,31 @@ class RMA_WC_Rental_And_Booking {
         $return_date     = wc_get_order_item_meta( $item_id, 'Return Date & Time' );
         $total_days      = wc_get_order_item_meta( $item_id, 'Total Days' );
 
-        // bail if we do not get all RnB meta data
-        if( !$pickup_location || !$pickup_date || !$return_date || $total_days ) {
+        $part_title = wc_get_order_item_meta( $item_id, 'Choose Inventory' );
 
-            return $part;
+        $rnb_order_meta = wc_get_order_item_meta( $item_id, 'rnb_price_breakdown' );
+        $duration_breakdown_sailcom = $rnb_order_meta['duration_breakdown_sailcom'];
+        $discount_breakdown_sailcom = $rnb_order_meta['discount_breakdown_sailcom'];
 
-        }
+        $datetime_format = get_option( 'date_format' ) . ' ' . get_option( 'time_format' );
+        $pickup_time = strtotime($rnb_order_meta[ 'pickup_time'] . ' ' . $rnb_order_meta[ 'pickup_time']);
+        $pickup_datetime_formatted = wp_date( $datetime_format, $pickup_time );
+
+        $dropoff_time = strtotime($rnb_order_meta[ 'dropoff_time'] . ' ' . $rnb_order_meta[ 'dropoff_time']);
+        $dropoff_datetime_formatted = wp_date($datetime_format, $dropoff_time );
+
+        $confimed_datetime = $order->get_date_paid();
+        $confimed_datetime_formatted = wp_date( $datetime_format, $dropoff_time );
+
+        // build multiline description
+        $part[ 'description' ] = $part[ 'description' ] . "\n" . $part_title . "\n";
+        $part[ 'description' ] .= ' ' .$pickup_datetime_formatted . ' - ' . $dropoff_datetime_formatted;
+        $part[ 'description' ] .= "\n" . esc_html__( 'Booked at', 'woocommerce-sailcom') . ': ' . $confimed_datetime_formatted;
+        $part[ 'description' ] .= ' (' . $order->get_customer_ip_address() . ')';
 
         // set line total price
+        $total = $rnb_order_meta[ 'discounted_duration_total' ];
+        // $total = $item->get_total(); Gives undiscounted...
         if( wc_tax_enabled() ) {
 
             $part[ 'sellprice' ] = round( $total + $tax, 2 );
@@ -115,14 +139,6 @@ class RMA_WC_Rental_And_Booking {
 
         }
 
-        // build multiline description
-        $part[ 'description' ] = $part[ 'description' ] . "\n" .
-                                 sprintf( __( 'Pickup Location: %s', 'rma-wc' ), $pickup_location ) . "\n" .
-                                 sprintf( __( 'Pickup Date/Time: %s', 'rma-wc' ), $pickup_date ) . "\n" .
-                                 sprintf( __( 'Return Date/Time: %s', 'rma-wc' ), $return_date ) . "\n" .
-                                 sprintf( __( 'Total Days: %s (%s)', 'rma-wc' ), $days, $total_days );
-
-        // return modified array
         return $part;
 
     }
