@@ -123,12 +123,16 @@ if ( !class_exists('RMA_WC_API') ) {
 			    $message = esc_html__( 'Response Code', 'rma-wc') . ' '. wp_remote_retrieve_response_code( $response );
                 $message .= ' '. wp_remote_retrieve_response_message( $response );
 
-                $response = (array) $response['http_response'];
-
+                if ( is_wp_error( $response ) ) {
+                	$message .= ' ' . $response->get_error_message();
+                } else {
                 foreach ( $response as $object ) {
                     $message .= ' ' . $object->url;
                     break;
                 }
+                }
+
+
 
                 $log_values = array(
                     'status' => 'error',
@@ -225,11 +229,13 @@ if ( !class_exists('RMA_WC_API') ) {
 			    $message = esc_html__( 'Response Code', 'rma-wc') . ' '. wp_remote_retrieve_response_code( $response );
                 $message .= ' '. wp_remote_retrieve_response_message( $response );
 
-                $response = (array) $response['http_response'];
-
+                if ( is_wp_error( $response ) ) {
+                	$message .= ' ' . $response->get_error_message();
+                } else {
                 foreach ( $response as $object ) {
                     $message .= ' ' . $object->url;
                     break;
+                }
                 }
 
                 $log_values = array(
@@ -299,11 +305,15 @@ if ( !class_exists('RMA_WC_API') ) {
 			    $message = esc_html__( 'Response Code', 'rma-wc') . ' '. wp_remote_retrieve_response_code( $response );
                 $message .= ' '. wp_remote_retrieve_response_message( $response );
 
-                $response = (array) $response['http_response'];
 
+                if ( is_wp_error( $response ) ) {
+                    $message .= ' ' . $response->get_error_message();
+                } else {
+                    $response = $response['http_response'];
                 foreach ( $response as $object ) {
                     $message .= ' ' . $object->url;
                     break;
+                }
                 }
 
                 $log_values = array(
