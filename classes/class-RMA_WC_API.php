@@ -126,10 +126,10 @@ if ( !class_exists('RMA_WC_API') ) {
                 if ( is_wp_error( $response ) ) {
                 	$message .= ' ' . $response->get_error_message();
                 } else {
-                foreach ( $response as $object ) {
-                    $message .= ' ' . $object->url;
-                    break;
-                }
+                	foreach ( $response as $object ) {
+                		$message .= ' ' . $object->url;
+                		break;
+                	}
                 }
 
 
@@ -232,10 +232,10 @@ if ( !class_exists('RMA_WC_API') ) {
                 if ( is_wp_error( $response ) ) {
                 	$message .= ' ' . $response->get_error_message();
                 } else {
-                foreach ( $response as $object ) {
-                    $message .= ' ' . $object->url;
-                    break;
-                }
+                	foreach ( $response as $object ) {
+                		$message .= ' ' . $object->url;
+                		break;
+                	}
                 }
 
                 $log_values = array(
@@ -305,15 +305,15 @@ if ( !class_exists('RMA_WC_API') ) {
 			    $message = esc_html__( 'Response Code', 'rma-wc') . ' '. wp_remote_retrieve_response_code( $response );
                 $message .= ' '. wp_remote_retrieve_response_message( $response );
 
-
+                
                 if ( is_wp_error( $response ) ) {
                     $message .= ' ' . $response->get_error_message();
                 } else {
                     $response = $response['http_response'];
-                foreach ( $response as $object ) {
-                    $message .= ' ' . $object->url;
-                    break;
-                }
+                	foreach ( $response as $object ) {
+                		$message .= ' ' . $object->url;
+                		break;
+                	}
                 }
 
                 $log_values = array(
@@ -381,11 +381,20 @@ if ( !class_exists('RMA_WC_API') ) {
             // Verify that the current user is supposed to have access to this invoice.
             $url       = self::get_caller_url() . RMA_MANDANT . '/invoices/' . $requested_rma_invoice_number;
             $url      .= '?api_key=' . RMA_APIKEY;
-            $xml_response  = wp_remote_get( $url );
+            $xml_response  = wp_remote_get( $url, array(
+                'timeout'     => 120
+            ) );
+            // TODO: Better error handling on timeouts etc. Is 120 a good value?
+            if ( is_wp_error( $xml_response ) ) {
+                $message = $xml_response->get_error_message();
+                return $message;
+            }
+
+
             libxml_use_internal_errors( true );
             $body = wp_remote_retrieve_body( $xml_response );
             $xml  = simplexml_load_string( $body );
-            $invoice = json_decode( json_encode( (array)$xml ), TRUE);
+            $invoice = json_decode( json_encode( (array) $xml ), true );
 
             $rma_user_remote = $invoice['customer']['customernumber'];
             $rma_user_current = get_user_meta( get_current_user_id(), 'rma_customer', true );

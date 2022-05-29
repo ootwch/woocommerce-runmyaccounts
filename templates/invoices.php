@@ -6,7 +6,6 @@
  *
  * This template can be overridden by copying it to yourtheme/woocommerce/myaccount/invoices.php.
  *
- *
  * @see https://docs.woocommerce.com/document/template-structure/
  * @package WooCommerce\Templates
  * @version 3.7.0
@@ -15,24 +14,24 @@
 defined( 'ABSPATH' ) || exit;
 
 $current_page = (int) basename( wp_parse_url( $_SERVER['REQUEST_URI'], PHP_URL_PATH ) ) ?: 1;
-$invoices = $args['invoices']['invoice'];
-$has_invoices = ! empty( $invoices ); 
+$invoices     = $args['invoices']['invoice'];
+$has_invoices = ! empty( $invoices );
 
 echo '<div><strong>Customer Name:</strong> ' . esc_html( $args['customer_info']['name'] ) . '</div>';
 echo '<div><strong>Invoicing ID:</strong> ' . esc_html( $args['customer_info']['customernumber'] ) . '</div>';
 echo '<div><strong>Invoicing Email:</strong> ' . esc_html( $args['customer_info']['email'] ) . '</div>';
 
 $max_num_per_page = 20;
-$max_num_pages = intdiv( count( $invoices), $max_num_per_page ) + 1;
+$max_num_pages    = intdiv( count( $invoices ), $max_num_per_page ) + 1;
 
-do_action( 'woocommerce_before_account_invoices', $has_invoices ); 
+do_action( 'woocommerce_before_account_invoices', $has_invoices );
 
 $invoice_columns = array(
-	'invnumber' => __('Invoice #', 'wc-rma' ),
-	'amount' => __('Invoice Amount', 'wc-rma' ),
-	'duedate' => __('Due Date', 'wc-rma' ),
-	'status' => __('Invoice Status', 'wc-rma' ),
-	'pdf' => __('Download Invoice (PDF)'),
+	'invnumber' => __( 'Invoice #', 'wc-rma' ),
+	'amount'    => __( 'Invoice Amount', 'wc-rma' ),
+	'duedate'   => __( 'Due Date', 'wc-rma' ),
+	'status'    => __( 'Invoice Status', 'wc-rma' ),
+	'pdf'       => __( 'Download Invoice (PDF)' ),
 );
 
 ?>
@@ -50,8 +49,8 @@ $invoice_columns = array(
 
 		<tbody>
 			<?php
-			foreach ( array_slice( $invoices, ( $current_page -1 ) * $max_num_per_page, $max_num_per_page, true ) as $invoice ) {
-				
+			foreach ( array_slice( $invoices, ( $current_page - 1 ) * $max_num_per_page, $max_num_per_page, true ) as $invoice ) {
+
 				?>
 				<tr class="woocommerce-invoices-table__row woocommerce-invoices-table__row--status-<?php echo esc_attr( $invoice['status'] ); ?> invoice">
 					<?php foreach ( $invoice_columns as $column_id => $column_name ) : ?>
@@ -63,10 +62,10 @@ $invoice_columns = array(
 								<a href="<?php echo esc_url( $invoice['url'] ); ?>">
 									<?php echo esc_html( _x( '#', 'hash before invoice number', 'woocommerce' ) . $invoice['invnumber'] ); ?>
 								</a>
-								<?php echo esc_html( $invoice['customer']['name']); ?>
+								<?php echo esc_html( $invoice['customer']['name'] ); ?>
 
 							<?php elseif ( 'duedate' === $column_id ) : ?>
-								<time datetime="<?php echo esc_attr( $invoice['duedate'] ); ?>"><?php echo esc_html( wp_date( get_option( 'date_format' ), strtotime( $invoice['duedate'] ) ) ) ; ?></time>
+								<time datetime="<?php echo esc_attr( $invoice['duedate'] ); ?>"><?php echo esc_html( wp_date( get_option( 'date_format' ), strtotime( $invoice['duedate'] ) ) ); ?></time>
 
 							<?php elseif ( 'status' === $column_id ) : ?>
 								<?php echo esc_html( __( $invoice['status'], 'wc-rma' ) ); ?>
@@ -74,13 +73,13 @@ $invoice_columns = array(
 							<?php elseif ( 'amount' === $column_id ) : ?>
 								<?php
 								/* translators: 1: formatted invoice total 2: total invoice items */
-								echo  wc_price( esc_html( $invoice['amount'] ) );
+								echo wc_price( esc_html( $invoice['amount'] ) );
 
 								?>
 
 							<?php elseif ( 'pdf' === $column_id ) : ?>
 								<?php
-								$nonce = wp_create_nonce( 'download-pdf-nonce-' . strtoupper( $invoice['invnumber'] ) );
+								$nonce          = wp_create_nonce( 'download-pdf-nonce-' . strtoupper( $invoice['invnumber'] ) );
 								$download_link  = '<a href="/my-account/invoices/pdf/' . $invoice['invnumber'];
 								$download_link .= '?_wpnonce=' . $nonce . '';
 								$download_link .= '" download="' . $invoice['invnumber'] . '.pdf"';
@@ -104,9 +103,10 @@ $invoice_columns = array(
 
 	<?php if ( 1 < $max_num_pages ) : ?>
 		<div class="woocommerce-pagination woocommerce-pagination--without-numbers woocommerce-Pagination">
-			<?php 
-			echo '<span> '. __('Page', 'woocommerce-sailcom') . ' ' . strval($current_page) . ' / ' . strval($max_num_pages) . ' </span>';
-			if ( 1 !== $current_page ) : ?>
+			<?php
+			echo '<span> ' . __( 'Page', 'woocommerce-sailcom' ) . ' ' . strval( $current_page ) . ' / ' . strval( $max_num_pages ) . ' </span>';
+			if ( 1 !== $current_page ) :
+				?>
 				<a class="woocommerce-button woocommerce-button--previous woocommerce-Button woocommerce-Button--previous button" href="<?php echo esc_url( wc_get_endpoint_url( 'invoices', $current_page - 1 ) ); ?>"><?php esc_html_e( 'Previous', 'woocommerce' ); ?></a>
 			<?php endif; ?>
 
