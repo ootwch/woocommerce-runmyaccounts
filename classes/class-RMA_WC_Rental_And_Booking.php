@@ -89,9 +89,9 @@ class RMA_WC_Rental_And_Booking {
 		}
 
 		// Set the article to the rental article for all rental bookings.
-		$settings             = get_option( 'wc_rma_settings' );
-		$order_meta           = $order->get_meta_data();
-		$is_cancelation_order = ( $order_meta['cancellation_fee_order'] ?? false ) === 'cancellation_fee_order';
+		$settings               = get_option( 'wc_rma_settings' );
+		$order_meta_cancelation = $order->get_meta( 'cancellation_fee_order' );
+		$is_cancelation_order   = ( ! empty( $order_meta_cancelation ) ) && 'cancellation_fee_order' === $order_meta_cancelation;
 
 		// Just for debugging. TODO: Remove!
 		// $part['itemnote'] = htmlspecialchars( print_r( $order_meta, true ), ENT_XML1, 'UTF-8' );
@@ -104,8 +104,8 @@ class RMA_WC_Rental_And_Booking {
 				wp_die( 'RMA Rental Booking Cancelation Article is not configured' );
 			}
 
-			$canceled_order_id           = $order_meta['canceled_order_id'] ?? '';
-			$canceled_order_booking_time = wp_date( $datetime_format, $order_meta['canceled_order_booking_time'] );
+			$canceled_order_id           = $order->get_meta( 'canceled_order_id' );
+			$canceled_order_booking_time = wp_date( $datetime_format, $order->get_meta( 'canceled_order_booking_time' ) );
 		} else {
 			$rental_booking_article = $settings['rma-product-rnb-rental-article'];
 			if ( ! isset( $rental_booking_article ) ) {
@@ -142,8 +142,7 @@ class RMA_WC_Rental_And_Booking {
 		$dropoff_time               = strtotime( $rnb_order_meta['dropoff_time'] . ' ' . $rnb_order_meta['dropoff_time'] );
 		$dropoff_datetime_formatted = wp_date( $datetime_format, $dropoff_time );
 
-		$confirmed_datetime           = $order->get_date_created();
-		$confirmed_datetime_formatted = wp_date( $datetime_format, $confirmed_datetime );
+		$confirmed_datetime_formatted = $order->get_date_created()->format( $datetime_format );
 
 		$rental_item_formatted  = '#' . $order_id . ' ' . $part['description'] . "\n" . $part_title . "\n";
 		$rental_item_formatted .= $pickup_datetime_formatted . ' - ' . $dropoff_datetime_formatted;
