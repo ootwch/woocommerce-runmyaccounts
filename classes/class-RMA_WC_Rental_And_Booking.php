@@ -132,7 +132,10 @@ class RMA_WC_Rental_And_Booking {
 
 		$part_title = wc_get_order_item_meta( $item_id, 'Choose Inventory' );
 
-		$rnb_order_meta             = wc_get_order_item_meta( $item_id, 'rnb_hidden_order_meta' );
+		$rnb_order_meta             = wc_get_order_item_meta( $item_id, 'rnb_price_breakdown' );
+		$duration_breakdown_sailcom = $rnb_order_meta['duration_breakdown_sailcom'];
+		$discount_breakdown_sailcom = $rnb_order_meta['discount_breakdown_sailcom'];
+		$cancelation_breakdown      = $rnb_order_meta['cancelation_breakdown'];
 
 		$pickup_time               = strtotime( $rnb_order_meta['pickup_date'] . ' ' . $rnb_order_meta['pickup_time'] );
 		$pickup_datetime_formatted = wp_date( $datetime_format, $pickup_time );
@@ -146,12 +149,23 @@ class RMA_WC_Rental_And_Booking {
 		$rental_item_formatted .= $pickup_datetime_formatted . ' - ' . $dropoff_datetime_formatted;
 
 		// build multiline description.
-		$part['description']  = '';
-		$part['description'] .= $is_cancelation_order ? esc_html__( 'Cancelation of Booking', 'woocommerce-sailcom' ) . '#' . $canceled_order_id . ' / ' . $canceled_order_booking_time : '';
-		$part['description'] .= ! $is_cancelation_order ? esc_html__( 'Reservation', 'woocommerce-sailcom' ) : '';
-		$part['description'] .= $rental_item_formatted . "\n";
-		$part['description'] .= esc_html__( 'Booked at', 'woocommerce-sailcom' ) . ': ' . $confirmed_datetime_formatted;
-		$part['description'] .= ' (' . $order->get_customer_ip_address() . ')';
+
+		if( $is_cancelation_order ) {
+			$part['description']  = '';
+			$part['description'] .= esc_html__( 'Cancelation of Booking', 'woocommerce-sailcom' ) . '#' . $canceled_order_id . ' / ' . $canceled_order_booking_time;
+			$part['description'] .= $cancelation_item; //TODO: Fix!
+			$part['description'] .= $rental_item_formatted . "\n";
+			$part['description'] .= esc_html__( 'Booked at', 'woocommerce-sailcom' ) . ': ' . $confirmed_datetime_formatted;
+			$part['description'] .= ' (' . $order->get_customer_ip_address() . ')';
+		} else {
+			$part['description']  = '';
+			$part['description'] .= esc_html__( 'Reservation', 'woocommerce-sailcom' );
+			$part['description'] .= $rental_item_formatted . "\n";
+			$part['description'] .= esc_html__( 'Booked at', 'woocommerce-sailcom' ) . ': ' . $confirmed_datetime_formatted;
+			$part['description'] .= ' (' . $order->get_customer_ip_address() . ')';
+		}
+
+
 
 		// set line total price.
 		$total = $item->get_total(); // Gives total of line item, which is the sustainable variant.
