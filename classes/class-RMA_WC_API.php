@@ -335,7 +335,7 @@ if ( !class_exists('RMA_WC_API') ) {
                 $body = wp_remote_retrieve_body( $response );
                 $xml  = simplexml_load_string( $body );
 
-				if ( !$xml ) {
+				if ( false === $xml ) {
 					// ToDO: Add this information to error log
 					foreach( libxml_get_errors() as $error ) {
 						echo "\t", $error->message;
@@ -347,7 +347,7 @@ if ( !class_exists('RMA_WC_API') ) {
 				else {
 					// Parse response
 					$invoices = json_decode( json_encode( (array)$xml ), TRUE);
-					return ( !empty( $invoices ) ? $invoices : false );
+					return ( !empty( $invoices ) ? $invoices : array( 'invoice' => array() ) );
                 }
             }
         }
