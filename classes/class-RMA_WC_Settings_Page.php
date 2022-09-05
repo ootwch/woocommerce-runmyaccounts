@@ -868,6 +868,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
                         'week'        => esc_html__( 'Once a week','rma-wc'),
                         'second_week' => esc_html__( 'Every second week','rma-wc'),
                         'month'       => esc_html__( 'Every month (first weekday of the month)','rma-wc'),
+                        'manually'    => esc_html__( 'Trigger invoicing manually', 'rma-wc' ),
                     ),
                     'description'  => esc_html__('For what period of time should collective invoices be created?', 'rma-wc' ),
                     'class'        => 'collective-invoice__period'

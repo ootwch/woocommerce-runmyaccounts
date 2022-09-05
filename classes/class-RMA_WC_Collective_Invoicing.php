@@ -97,6 +97,10 @@ class RMA_WC_Collective_Invoicing {
             case 'month' :
                 $next_date_ts_utc = strtotime("first $weekday of next month");
                 break;
+            case 'manually' :
+                // Wait forever (until 2030) to trigger automatically.
+                $next_date_ts_utc = strtotime( '01/01/2030' );
+                break;
         }
 
         if( !empty( $next_date_ts_utc ) ) {
