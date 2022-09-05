@@ -59,7 +59,7 @@ $invoice_columns = array(
 								<?php do_action( 'woocommerce_my_account_my_invoices_column_' . $column_id, $invoice ); ?>
 
 							<?php elseif ( 'invnumber' === $column_id ) : ?>
-								<a href="<?php echo esc_url( $invoice['url'] ?? 'no-url' ); ?>">
+								<a href="<?php '/my-account/view-order/' . $invoice['invnumber'] .'/'; ?>">
 									<?php echo esc_html( _x( '#', 'hash before invoice number', 'woocommerce' ) . $invoice['invnumber'] ); ?>
 								</a>
 								<?php echo esc_html( $invoice['customer']['name'] ); ?>

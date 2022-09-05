@@ -115,7 +115,7 @@ if ( !class_exists('RMA_WC_API') ) {
             }
 
 			$url       = self::get_caller_url() . RMA_MANDANT . '/customers?api_key=' . RMA_APIKEY;
-            $response  = wp_remote_get( $url );
+            $response  = wp_remote_get( $url, ['timeout' => 120 ] );
 
             // Check response code
 			if ( 200 <> wp_remote_retrieve_response_code( $response ) ){
@@ -297,7 +297,7 @@ if ( !class_exists('RMA_WC_API') ) {
 
             $url       = self::get_caller_url() . RMA_MANDANT . '/invoices' . '?api_key=' . RMA_APIKEY;
             $url      .= '&customer_number=' . sanitize_key( $rma_customer_id );
-            $response  = wp_remote_get( $url );
+            $response  = wp_remote_get( $url, ['timeout' => 120] );
 
             // Check response code
 			if ( 200 <> wp_remote_retrieve_response_code( $response ) ){
