@@ -21,6 +21,9 @@ class RMA_WC_Collective_Invoicing {
 
         add_action( 'run_my_accounts_collective_invoice', array( $this, 'create_collective_invoice' ) );
 
+        // Collective invoices should have the order_id in the name.
+        add_filter( 'rma_invoice_part', array( $this, 'add_order_id_to_description' ), 10, 2 );
+
     }
 
     /**
@@ -384,4 +387,15 @@ class RMA_WC_Collective_Invoicing {
         }
     }
 
+    /**
+     * Add order ID to description.
+     */
+    public function add_order_id_to_description( array $part, ?int $item_id ) :array {
+
+        $order_id = wc_get_order_id_by_order_item_id( $item_id );
+        $order = wc_get_order( $order_id );
+        $order_item = $order->get_item( $item_id );
+        $part['description'] = '#' . $order_id . ' ' . $order_item->get_name();
+        return $part;
+    }
 }
