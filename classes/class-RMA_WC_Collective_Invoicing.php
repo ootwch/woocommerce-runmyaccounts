@@ -257,16 +257,17 @@ class RMA_WC_Collective_Invoicing {
      * @throws Exception
      * @since 1.7.0
      */
-    public function create_collective_invoice(): array {
+    public function create_collective_invoice( bool $force = false, bool $display = false ): array {
         // reset array
         $order_date_created = array();
         $created_invoices   = array();
+        $display_invoices   = array();
 
         // get the timestamp with the current date, but without time
         $current_date = strtotime(date('Y-m-d', time() ) );
 
         // if we do not have to create collective invoices today
-        if( $current_date != $this->settings[ 'collective_invoice_next_date_ts' ] ) {
+        if ( false === $force && $current_date !== $this->settings[ 'collective_invoice_next_date_ts' ] ) {
             // return the empty array
             return $created_invoices;
         }
@@ -331,14 +332,26 @@ class RMA_WC_Collective_Invoicing {
                         $description = str_replace('[period]', $period, $settings[ 'rma-collective-invoice-description' ] ?? '' );
                         // collect invoice data
                         $data = $invoice->get_invoice_data( $order_details, $order_details_products, $invoice_id, '', $description );
-                        // create xml and send invoice to Run My Accounts
-                        $result = $invoice->create_xml_content( $data, $order_ids, true );
 
-                        if( false != $result ) {
+                        if ( ! $display ) {
+                            // create xml and send invoice to Run My Accounts
+                            $result = $invoice->create_xml_content( $data, $order_ids, true );
 
-                            $created_invoices[] = $invoice_id;
+                            if( false != $result ) {
 
-                        }
+                                $created_invoices[] = $invoice_id;
+
+                            }
+                        } else {
+
+                            $first_order = wc_get_order( $order_ids[0] );
+                            $display_invoices[$invoice_id] = array(
+                                'data' => $data,
+                                'user_id' => $first_order->get_customer_id(),
+                                'order_ids' => $order_ids,
+                            );
+                        };
+
 
                     }
 
@@ -349,6 +362,10 @@ class RMA_WC_Collective_Invoicing {
         }
 
         unset( $invoice );
+
+        if ( $display ) {
+            return $display_invoices;
+        }
 
         // were invoices created, and we should send an email?
         if( 0 < count( $created_invoices ) && SENDLOGEMAIL ) {
