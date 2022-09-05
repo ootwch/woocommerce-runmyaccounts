@@ -80,3 +80,6 @@ if ( count( array_intersect( $required_plugins, $active_plugins ) ) !== count( $
 
 // RMA Invoice Status
 $s = new RMA_WC_Invoice();
+
+// RMA Collective Invoice Dashboard
+new RMA_WC_Admin_Collective_Invoice();
