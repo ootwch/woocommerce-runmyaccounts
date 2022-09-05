@@ -694,8 +694,8 @@ if ( !class_exists('RMA_WC_API') ) {
             // Add parts
             if ( count( $order_details_products ) > 0 ) :
 
-                foreach ( $order_details_products as $part_number => $part ) :
-
+                foreach ( $order_details_products as $part ) :
+                    $part_number = $part['sku'] ?? '';
                     // check if fallback sku exist and part number does not exist in list of RMA part numbers
                     if( !empty( $fallback_sku ) &&
                         !array_key_exists( $part_number, $rma_part_numbers ) )
@@ -920,12 +920,12 @@ if ( !class_exists('RMA_WC_API') ) {
 
                 // make sure the product is still available in WooCommerce
                 if( is_object( $product ) ) {
-
-                    $order_details_products[ $product->get_sku() ] = array(
+                    $order_details_products[] = array(
                         'name'     => $item->get_name(),
                         'quantity' => $item->get_quantity(),
                         'price'    => wc_format_decimal( $product->get_price(), 2 ),
-                        'item_id'  => $item_id
+                        'item_id'  => $item_id,
+                        'sku'      => $product->get_sku() ?? '',
                     );
 
                 }
