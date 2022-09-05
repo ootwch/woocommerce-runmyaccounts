@@ -219,7 +219,7 @@ class RMA_WC_Invoice {
                 load_template(plugin_dir_path(__FILE__) . '../templates/invoices.php', null, $invoice_data); // TODO: Do real templating
             }
             else {
-                echo sprintf ('<div class="warning">%1s</div>', esc_html_e( 'This user does not have an account in the accounting system.', 'rma-wc' ));
+                printf ('<div class="warning">%1s</div>', esc_html_e( 'This user does not have an account in the accounting system.', 'rma-wc' ));
 
             }
         }

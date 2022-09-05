@@ -90,22 +90,26 @@ class RMA_WC_Rental_And_Booking {
 
 		// Set the article to the rental article for all rental bookings.
 		$settings               = get_option( 'wc_rma_settings' );
+
+		$item_rental_days_and_cost = $item->get_meta( 'rnb_hidden_order_meta' )['rental_days_and_costs'];
 		$order_meta_cancelation = $order->get_meta( 'cancellation_fee_order' );
-		$is_cancelation_order   = ( ! empty( $order_meta_cancelation ) ) && 'cancellation_fee_order' === $order_meta_cancelation;
+		$is_cancelation_order   = ( ! empty( $item_rental_days_and_cost['order_modification_type'] ) ) && 'cancelation' === $item_rental_days_and_cost['order_modification_type'];
 
 		// Just for debugging. TODO: Remove!
 		// $part['itemnote'] = htmlspecialchars( print_r( $order_meta, true ), ENT_XML1, 'UTF-8' );
 
 		$canceled_order_id = null;
 		if ( $is_cancelation_order ) {
-			$rental_booking_article = $settings['rma-product-rnb-cancelation-article'];
-
-			if ( ! isset( $rental_booking_article ) ) {
-				wp_die( 'RMA Rental Booking Cancelation Article is not configured' );
+            
+            if ( ! isset( $settings['rma-product-rnb-cancelation-article'] ) ) {
+                wp_die( 'RMA Rental Booking Cancelation Article is not configured' );
 			}
+            $rental_booking_article = $settings['rma-product-rnb-cancelation-article'];
 
-			$canceled_order_id           = $order->get_meta( 'canceled_order_id' );
-			$canceled_order_booking_time = wp_date( $datetime_format, $order->get_meta( 'canceled_order_booking_time' ) );
+			$canceled_order_id           = $item_rental_days_and_cost['order_modification_original_order'];
+			$canceled_order = wc_get_order( $canceled_order_id );
+			
+			$canceled_order_booking_time = wp_date( $datetime_format, $canceled_order->get_date_created() );
 		} else {
 			$rental_booking_article = $settings['rma-product-rnb-rental-article'];
 			if ( ! isset( $rental_booking_article ) ) {
@@ -147,8 +151,13 @@ class RMA_WC_Rental_And_Booking {
 
 		// build multiline description.
 		$part['description']  = '';
-		$part['description'] .= $is_cancelation_order ? esc_html__( 'Cancelation of Booking', 'woocommerce-sailcom' ) . '#' . $canceled_order_id . ' / ' . $canceled_order_booking_time : '';
-		$part['description'] .= ! $is_cancelation_order ? esc_html__( 'Reservation', 'woocommerce-sailcom' ) : '';
+
+        if ( $is_cancelation_order ) {
+            $part['description'] .= esc_html__( 'Cancelation of Booking', 'woocommerce-sailcom' ) . '#' . $canceled_order_id . ' / ' . $canceled_order_booking_time . "\n";
+        } else {
+            $part['description'] .= esc_html__( 'Reservation', 'woocommerce-sailcom' ) . "\n";
+        }
+
 		$part['description'] .= $rental_item_formatted . "\n";
 		$part['description'] .= esc_html__( 'Booked at', 'woocommerce-sailcom' ) . ': ' . $confirmed_datetime_formatted;
 		$part['description'] .= ' (' . $order->get_customer_ip_address() . ')';
