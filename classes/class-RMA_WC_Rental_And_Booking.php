@@ -142,7 +142,10 @@ class RMA_WC_Rental_And_Booking {
 
 		$part_title = wc_get_order_item_meta( $item_id, 'Choose Inventory' );
 
-		$rnb_order_meta             = wc_get_order_item_meta( $item_id, 'rnb_hidden_order_meta' );
+		$rnb_order_meta             = wc_get_order_item_meta( $item_id, 'rnb_price_breakdown' );
+		$duration_breakdown_sailcom = $rnb_order_meta['duration_breakdown_sailcom'];
+		$discount_breakdown_sailcom = $rnb_order_meta['discount_breakdown_sailcom'];
+		$cancelation_breakdown      = $rnb_order_meta['cancelation_breakdown'];
 
 		$pickup_time               = strtotime( $rnb_order_meta['pickup_date'] . ' ' . $rnb_order_meta['pickup_time'] );
 		$pickup_datetime_formatted = wp_date( $datetime_format, $pickup_time );

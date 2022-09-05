@@ -5,6 +5,8 @@ if ( !class_exists('RMA_WC_API') ) {
 
 	class RMA_WC_API {
 
+
+
 		/**
 		 *  Construct
 		 */
@@ -16,6 +18,10 @@ if ( !class_exists('RMA_WC_API') ) {
 		        self::define_constants();
 
 		}
+
+        const http_args = array(
+            'timeout'     => 120
+        );
 
         /**
          * define default constants
@@ -71,6 +77,8 @@ if ( !class_exists('RMA_WC_API') ) {
                 if( !defined( 'SENDLOGEMAIL' ) ) DEFINE( 'SENDLOGEMAIL' , false );
             }
 
+
+
         }
 
 		/**
@@ -115,7 +123,7 @@ if ( !class_exists('RMA_WC_API') ) {
             }
 
 			$url       = self::get_caller_url() . RMA_MANDANT . '/customers?api_key=' . RMA_APIKEY;
-            $response  = wp_remote_get( $url, ['timeout' => 120 ] );
+            $response  = wp_remote_get( $url, self::http_args );
 
             // Check response code
 			if ( 200 <> wp_remote_retrieve_response_code( $response ) ){
@@ -221,7 +229,7 @@ if ( !class_exists('RMA_WC_API') ) {
 
             $url       = self::get_caller_url() . RMA_MANDANT . '/customers/' . sanitize_key( $rma_customer_id ) . '?api_key=' . RMA_APIKEY;
 
-            $response  = wp_remote_get( $url );
+            $response  = wp_remote_get( $url, self::http_args );
 
             // Check response code
 			if ( 200 <> wp_remote_retrieve_response_code( $response ) ){
@@ -297,7 +305,7 @@ if ( !class_exists('RMA_WC_API') ) {
 
             $url       = self::get_caller_url() . RMA_MANDANT . '/invoices' . '?api_key=' . RMA_APIKEY;
             $url      .= '&customer_number=' . sanitize_key( $rma_customer_id );
-            $response  = wp_remote_get( $url, ['timeout' => 120] );
+            $response  = wp_remote_get( $url , self::http_args);
 
             // Check response code
 			if ( 200 <> wp_remote_retrieve_response_code( $response ) ){
@@ -381,9 +389,7 @@ if ( !class_exists('RMA_WC_API') ) {
             // Verify that the current user is supposed to have access to this invoice.
             $url       = self::get_caller_url() . RMA_MANDANT . '/invoices/' . $requested_rma_invoice_number;
             $url      .= '?api_key=' . RMA_APIKEY;
-            $xml_response  = wp_remote_get( $url, array(
-                'timeout'     => 120
-            ) );
+            $xml_response  = wp_remote_get( $url, self::http_args );
             // TODO: Better error handling on timeouts etc. Is 120 a good value?
             if ( is_wp_error( $xml_response ) ) {
                 $message = $xml_response->get_error_message();
@@ -414,7 +420,7 @@ if ( !class_exists('RMA_WC_API') ) {
 
             $url       = self::get_caller_url() . RMA_MANDANT . '/invoices/' . $requested_rma_invoice_number. '/pdf';
             $url      .= '?api_key=' . RMA_APIKEY;
-            $response  = wp_remote_get( $url );
+            $response  = wp_remote_get( $url , self::http_args);
 
             // Check response code
 			if ( 200 <> wp_remote_retrieve_response_code( $response ) ){
@@ -484,7 +490,7 @@ if ( !class_exists('RMA_WC_API') ) {
 
             $url       = self::get_caller_url() . RMA_MANDANT . '/parts?api_key=' . RMA_APIKEY;
 
-            $response  = wp_remote_get( $url );
+            $response  = wp_remote_get( $url, self::http_args);
 
             // Check response code
             if ( 200 <> wp_remote_retrieve_response_code( $response ) ){
@@ -568,7 +574,7 @@ if ( !class_exists('RMA_WC_API') ) {
             }
 
 			$url       = self::get_caller_url() . RMA_MANDANT . '/invoices?api_key=' . RMA_APIKEY;
-            $response  = wp_remote_get( $url );
+            $response  = wp_remote_get( $url , self::http_args);
 
 
 
