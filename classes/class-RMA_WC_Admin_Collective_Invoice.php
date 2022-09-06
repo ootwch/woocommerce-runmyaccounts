@@ -15,6 +15,8 @@ class RMA_WC_Admin_Collective_Invoice {
 	public function __construct() {
 		add_action( 'admin_menu', array( $this, 'add_menu_entry' ), 12 );
 
+		add_action( 'admin_post_collective_invoicing_form_response', array( $this, 'start_billing_run' ) );
+
 	}
 
 	public function add_menu_entry() {
@@ -33,7 +35,33 @@ class RMA_WC_Admin_Collective_Invoice {
 
 	}
 
+	public function start_billing_run() {
+
+		check_admin_referer( 'collective_invoicing_form' );
+
+		if ( isset( $_POST['collective-invoice-title-field'] ) ) {
+			$invoice_title = sanitize_text_field( wp_unslash( $_POST['collective-invoice-title-field'] ) );
+
+			$t = new RMA_WC_Collective_Invoicing();
+
+			$rval = $t->create_collective_invoice( true, false, $invoice_title );
+
+			echo '<h3> Created Invoices:</h3>';
+			echo esc_html( implode( ', ', $rval ) );
+
+			echo '<h3> Error Log</h3>';
+			( new RMA_WC_Settings_Page() )->output_log();
+		} else {
+			wp_die( 'form error' );
+		}
+	}
+
 	public function show_dashboard() {
+
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			echo '<h3> You do not have permission to use this dashboard. </h3>';
+			return;
+		}
 
 		$t = new RMA_WC_Collective_Invoicing();
 
@@ -41,6 +69,15 @@ class RMA_WC_Admin_Collective_Invoice {
 		$display_data = $t->create_collective_invoice( true, true );
 
 		echo '<h3>Dashboard</h3>';
+
+		echo '<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post" id="collective_invoicing_form">';
+		echo '<input type="hidden" name="action" value="collective_invoicing_form_response">';
+
+		echo '<label for="collective-invoice-title-field"> Collective Invoice Title </label><br>';
+		echo '<input required id="collective-invoice-title-field" type="text" name="collective-invoice-title-field" value="" placeholder="" /><br>';
+		wp_nonce_field( 'collective_invoicing_form' );
+		echo '<p class="submit"><input type="submit" name="submit" id="submit" class="button button-primary" value="Start Billing Run now!"/></p>';
+		echo '</form>';
 
 		echo '<table class="widefat fixed" cellspacing="0">';
 		echo '<thead>';
@@ -78,10 +115,13 @@ class RMA_WC_Admin_Collective_Invoice {
 			echo '</tr>';
 
 			foreach ( $invoice_info['data']['part'] as $part ) {
+
+				$description = preg_replace( '[&#xA;|&#xD;]', '<br/>', $part['description'] );
+
 				printf( '<tr %s>', $alternate ? 'class="alternate"' : '' );
 				echo '<td></td>';
 				echo "<td class='column-columnname'>" . $part['partnumber'] . "</td>";
-				echo "<td class='column-columnname'>" . $part['description'] . "</td>";
+				echo "<td class='column-columnname'>" . $description . "</td>";
 				echo "<td class='column-columnname'>" . ( $part['projectnumber'] ?? '' ) . "</td>";
 				echo "<td class='column-columnname'>" . wc_price( $part['sellprice'] ) . "</td>";
 				echo '</tr>';

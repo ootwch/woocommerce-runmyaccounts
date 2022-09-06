@@ -12,6 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class RMA_WC_Rental_And_Booking {
 
+	const XML_NL = '&#xA;';
+
 	public function __construct() {
 
 		self::init();
@@ -156,21 +158,21 @@ class RMA_WC_Rental_And_Booking {
 		$part['description'] = '';
 
         if ( $is_cancelation_order ) {
-            $part['description']  = '#' . $order_id . ': ' . esc_html__( 'Cancelation of original order', 'woocommerce-sailcom' ) . ' #' . $canceled_order_id . " \n";
+            $part['description']  = '#' . $order_id . ': ' . esc_html__( 'Cancelation of original order', 'woocommerce-sailcom' ) . ' #' . $canceled_order_id . self::XML_NL;
 			$part['description'] .= $part_title;
 
         } else {
 
 			$pickup_time                = new \DateTime( $rnb_order_meta['pickup_date'] . ' ' . $rnb_order_meta['pickup_time'], wp_timezone() );
-			$pickup_datetime_formatted  = wp_date( $datetime_format, $pickup_time );
+			$pickup_datetime_formatted  = wp_date( $datetime_format, $pickup_time->format( 'U' ) );
 			$dropoff_time               = new \DateTime( $rnb_order_meta['dropoff_date'] . ' ' . $rnb_order_meta['dropoff_time'], wp_timezone() );
-			$dropoff_datetime_formatted = wp_date( $datetime_format, $dropoff_time );
+			$dropoff_datetime_formatted = wp_date( $datetime_format, $dropoff_time->format( 'U' ) );
 
-            $part['description']  = '#' . $order_id . ': ' . esc_html__( 'Reservation', 'woocommerce-sailcom' ) . " \n";
-			$part['description'] .= $part_title . '\n ' . $pickup_datetime_formatted . ' - ' . $dropoff_datetime_formatted;
+            $part['description']  = '#' . $order_id . ': ' . esc_html__( 'Reservation', 'woocommerce-sailcom' ) . self::XML_NL;
+			$part['description'] .= $part_title . self::XML_NL . $pickup_datetime_formatted . ' - ' . $dropoff_datetime_formatted;
         }
 
-		$part['description'] .= ' \n(' . $confirmed_datetime_formatted . '/' . $order->get_customer_ip_address() . ')';
+		$part['description'] .= self::XML_NL . '(' . $confirmed_datetime_formatted . '/' . $order->get_customer_ip_address() . ')';
 
 		// set line total price.
 		$total = $item->get_total(); // Gives total of line item, which is the sustainable variant.

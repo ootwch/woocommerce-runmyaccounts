@@ -257,7 +257,7 @@ class RMA_WC_Collective_Invoicing {
      * @throws Exception
      * @since 1.7.0
      */
-    public function create_collective_invoice( bool $force = false, bool $display = false ): array {
+    public function create_collective_invoice( bool $force = false, bool $display = false, $description = false ): array {
         // reset array
         $order_date_created = array();
         $created_invoices   = array();
@@ -329,7 +329,9 @@ class RMA_WC_Collective_Invoicing {
                         // create period between oldest and latest order
                         $period = date_i18n( get_option( 'date_format' ), min( $order_date_created ) ) . ' - ' . date_i18n( get_option( 'date_format' ), max( $order_date_created ) );
                         // create description
-                        $description = str_replace('[period]', $period, $settings[ 'rma-collective-invoice-description' ] ?? '' );
+                        if ( false === $description ) {
+                            $description = str_replace( '[period]', $period, $settings['rma-collective-invoice-description'] ?? '' );
+                        }
                         // collect invoice data
                         $data = $invoice->get_invoice_data( $order_details, $order_details_products, $invoice_id, '', $description );
 
