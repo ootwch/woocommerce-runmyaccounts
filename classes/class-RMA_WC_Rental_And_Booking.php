@@ -161,17 +161,16 @@ class RMA_WC_Rental_And_Booking {
 
         } else {
 
-			$pickup_time               = strtotime( $rnb_order_meta['pickup_date'] . ' ' . $rnb_order_meta['pickup_time'] );
-			$pickup_datetime_formatted = wp_date( $datetime_format, $pickup_time );
-
-			$dropoff_time               = strtotime( $rnb_order_meta['dropoff_date'] . ' ' . $rnb_order_meta['dropoff_time'] );
+			$pickup_time                = new \DateTime( $rnb_order_meta['pickup_date'] . ' ' . $rnb_order_meta['pickup_time'], wp_timezone() );
+			$pickup_datetime_formatted  = wp_date( $datetime_format, $pickup_time );
+			$dropoff_time               = new \DateTime( $rnb_order_meta['dropoff_date'] . ' ' . $rnb_order_meta['dropoff_time'], wp_timezone() );
 			$dropoff_datetime_formatted = wp_date( $datetime_format, $dropoff_time );
 
             $part['description']  = '#' . $order_id . ': ' . esc_html__( 'Reservation', 'woocommerce-sailcom' ) . " \n";
-			$part['description'] .= $part_title . ' ' . $pickup_datetime_formatted . ' - ' . $dropoff_datetime_formatted;
+			$part['description'] .= $part_title . '\n ' . $pickup_datetime_formatted . ' - ' . $dropoff_datetime_formatted;
         }
 
-		$part['description'] .= ' (' . $confirmed_datetime_formatted . '/' . $order->get_customer_ip_address() . ')';
+		$part['description'] .= ' \n(' . $confirmed_datetime_formatted . '/' . $order->get_customer_ip_address() . ')';
 
 		// set line total price.
 		$total = $item->get_total(); // Gives total of line item, which is the sustainable variant.
