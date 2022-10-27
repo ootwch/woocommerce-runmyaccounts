@@ -361,7 +361,7 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
 	     * @return mixed
 	     */
 	    public function usermeta_profile_fields( $fields ) {
-
+            global $user_id;
             // if WooCommerce Germanized is not active add our own billing title
             if ( ! defined( 'WC_GERMANIZED_VERSION' ) ) {
                 $fields['billing']['fields']['billing_title'] = array(
@@ -376,33 +376,37 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
                     'description' => '',
                     'class' => 'rma_title'
                 );
-            }
-
+            }            
+            
+            $user_id = (int) $user_id;
 		    $fields[ 'rma' ][ 'title' ] = __( 'Settings Run my Accounts', 'rma-wc' );
 
-            $RMA_WC_API = new RMA_WC_API();
-            $options = $RMA_WC_API->get_customers();
+            $current_customer_id = get_user_meta( $user_id, 'rma_customer', true );
+            $name                = __( 'Customer not registered.', 'rma-wc' );
 
-    	    if( !$options ) {
+    	    if ( empty( $current_customer_id ) ) {
 
 			    $fields[ 'rma' ][ 'fields' ][ 'rma_customer' ] = array(
 				    'label'       => __( 'Customer', 'rma-wc' ),
-				    'type'		  => 'select',
-				    'options'	  => array('' => __( 'Error while connecting to RMA. Please check your settings.', 'rma-wc' )),
-				    'description' => __( 'Select the corresponding RMA customer for this account.', 'rma-wc' ),
+				    'type'        => 'input',
+				    'description' => __( 'Choose the corresponding RMA customer for this account.', 'rma-wc' ),
                     'class'       => 'rma_customer'
 			    );
 
 			    return $fields;
 		    }
 
-		    $options = array('' => __( 'Select customer...', 'rma-wc' )) + $options;
+            $RMA_WC_API = new RMA_WC_API();
+            $customer = $RMA_WC_API->get_customer( $current_customer_id );
+            
+            if( ! empty( $customer ) ) {
+                $name = $customer['name'];
+            }
 
 		    $fields[ 'rma' ][ 'fields' ][ 'rma_customer' ] = array(
 			    'label'       => __( 'Customer', 'rma-wc' ),
-			    'type'		  => 'select',
-			    'options'	  => $options,
-			    'description' => __( 'Select the corresponding RMA customer for this account.', 'rma-wc' ),
+			    'type'		  => 'input',
+			    'description' => $name . ' (' . $current_customer_id . ')',
                 'class'       => 'rma_customer'
 		    );
 
