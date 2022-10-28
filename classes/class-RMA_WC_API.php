@@ -415,6 +415,7 @@ if ( !class_exists('RMA_WC_API') ) {
                     'message' => 'Download failed / invoice does not exist for this user' );
 
                 self::write_log($log_values);
+                wp_die( wp_json) // TODO: Is this correct?
                 return false;
             }
 
