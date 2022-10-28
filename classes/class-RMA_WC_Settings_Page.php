@@ -1203,7 +1203,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
             // output connection status
             $RMA_WC_API = new RMA_WC_API();
             // Retrieve customers to check connection
-            $options = $RMA_WC_API->get_customers();
+            $options = $RMA_WC_API->get_parts();
             unset( $RMA_WC_API );
 
             if ( ! $options )
