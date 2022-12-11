@@ -765,7 +765,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
                 array( $this, 'section_info_accounting' ), // Callback
                 $this->option_page_accounting // Page
             );
-
+            
             // add  settings fields for all payment gateways
             $available_gateways = WC()->payment_gateways->get_available_payment_gateways();
 
@@ -1336,6 +1336,8 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
         /**
          * Read log information from database
+         * 
+         * TODO: That should perhaps be refactored into a dedicated "RMA_Logging" Class.
          *
          * @return string
          */
@@ -1355,40 +1357,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
             }
 
-            $output = '<table class="widefat">';
-
-            $table_header = true;
-
-            foreach ( $results as $result ) {
-
-                if ( $table_header ) {
-                    $output .= '<thead><tr>';
-                    foreach ( array_keys( ( $result ) ) as $key ) {
-                        $output .= '<th>' . $key . '</th>';
-                    }
-                    $output .= '</tr></thead>';
-
-                    $table_header = false;
-                }
-
-                $output .= '<tr>';
-                foreach ( $result as $key => $value ) {
-
-                    $value = str_replace('error','<span style="color: red;">error</span>',$value);
-                    $value = str_replace('failed','<span style="color: red;">failed</span>',$value);
-                    $value = str_replace('success','<span style="color: green;">success</span>',$value);
-                    $value = str_replace('paid','<span style="color: green;">paid</span>',$value);
-                    $value = str_replace('created','<span style="color: green;">created</span>',$value);
-                    $value = str_replace('invoiced','<span style="color: green;">invoiced</span>',$value);
-
-                    $output .= '<td>' . $value . '</td>';
-                }
-                $output .= '</tr>';
-            }
-
-            $output .= '</table>';
-
-            return $output;
+            return RMA_WC_API::format_log_information( $results );
 
         }
 
