@@ -414,6 +414,7 @@ class RMA_WC_Collective_Invoicing {
         $order_id = wc_get_order_id_by_order_item_id( $item_id );
         $order = wc_get_order( $order_id );
         $order_item = $order->get_item( $item_id );
+        $part['order_id'] = $order_id;
         $part['description'] = '#' . $order_id . ' ' . $order_item->get_name();
         return $part;
     }

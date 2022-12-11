@@ -20,9 +20,12 @@ class RMA_WC_Admin_Collective_Invoice {
 	 * Add the hooks for the menu and the form response.
 	 */
 	public function __construct() {
+
 		add_action( 'admin_menu', array( $this, 'add_menu_entry' ), 12 );
 		add_action( 'admin_post_collective_invoicing_form_response', array( $this, 'start_billing_run' ) );
+
 	}
+
 
 	/**
 	 * Admin menu entry
@@ -31,7 +34,7 @@ class RMA_WC_Admin_Collective_Invoice {
 	 */
 	public function add_menu_entry() {
 
-		add_submenu_page(
+		$page = add_submenu_page(
 			'woocommerce',
 			'Invoice Generation Dashboard',
 			'Invoice Generation Dashboard',
@@ -43,6 +46,13 @@ class RMA_WC_Admin_Collective_Invoice {
 			)
 		);
 
+		// Initialize the list table instance when the page is loaded.
+		add_action( "load-$page", array( $this, 'init_list_table' ) );
+
+	}
+
+	public function init_list_table() {
+		$this->invoice_table = new RMA_WC_Collective_Invoice_Table();
 	}
 
 	/**
@@ -81,91 +91,158 @@ class RMA_WC_Admin_Collective_Invoice {
 			return;
 		}
 
-		$t = new RMA_WC_Collective_Invoicing();
+		if ( isset( $_GET['invoice_action'] ) ) {
+			switch ( $_GET['invoice_action'] ) {
 
-		$invoices     = $t->get_not_invoiced_orders();
-		$display_data = $t->create_collective_invoice( true, true );
+				case 'prepare_invoices':
+					$this->handle_create_invoice();
+					return;
+				case 'confirm_invoices': //phpcs:ignore
+					$this->handle_confirm_invoice();
+					return;
+				default:
+					break;
 
-		echo '<h3>Dashboard</h3>';
-
-		echo '<form action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" method="post" id="collective_invoicing_form">';
-		echo '<input type="hidden" name="action" value="collective_invoicing_form_response">';
-
-		echo '<label for="collective-invoice-title-field"> Collective Invoice Title </label><br>';
-		echo '<input required id="collective-invoice-title-field" type="text" name="collective-invoice-title-field" value="" placeholder="" /><br>';
-		wp_nonce_field( 'collective_invoicing_form' );
-		echo '<p class="submit"><input type="submit" name="submit" id="submit" class="button button-primary" value="Start Billing Run now!"/></p>';
-		echo '</form>';
-
-		echo '<table class="widefat fixed" cellspacing="0">';
-		echo '<thead>';
-		echo '<tr style="vertical-align: text-top;">';
-
-		$keys = array(
-			'<p style="font-weight:bold">Invoice ID</p>',
-			'<p style="font-weight:bold">Customer Number (Customer Name)</p><p>RMA Product</p>',
-			'<p style="font-weight:bold">Links to Related Orders</p><p>Description</p>',
-			'<p style="font-weight:bold">Due Date</p><p>RMA Project ID</p>',
-			'<p>&nbsp;</p><p>Price</p>',
-		);
-
-		foreach ( $keys as $key ) {
-			$key_id = sanitize_title( $key );
-			echo "<th id='$key_id' class='manage-column column-columnname' scope='col'>$key</th>"; //phpcs:ignore
-		}
-		echo '</tr>';
-		echo '</thead>';
-
-		echo '<tbody>';
-
-		$alternate = false;
-
-		if ( empty( $display_data ) ) {
-			echo '<tr><td colspan="4" style="text-align: center;">No invoices to generate.</td></tr>';
-		}
-
-		foreach ( $display_data as $invoice_id => $invoice_info ) {
-			printf( '<tr class="%s" style="font-weight:bold">', $alternate ? 'alternate' : '' );
-			echo '<td>';
-			echo esc_html( $invoice_id ) . '</td>';
-			$invoice_data = $invoice_info['data'];
-			$user_data    = get_userdata( $invoice_info['user_id'] );
-			echo '<td>' . esc_html( $invoice_data['invoice']['customernumber'] ) . ' ( ' . esc_html( $user_data->display_name ) . ' )</td>';
-			echo '<td>';
-
-			$links = array();
-			foreach ( $invoice_info['order_ids'] as $order_id ) {
-				$links[] = sprintf( '<a target="_blank" href="%s">%s</a>', get_edit_post_link( $order_id ), esc_html( $order_id ) );
 			}
-			echo implode( ',', $links ); //phpcs:ignore
-			echo '</td>';
-
-			$dateformat = get_option( 'date_format' ) . ' ' . get_option( 'time_format' );
-			echo '</td><td>' . ( new \DateTime( $invoice_data['invoice']['duedate'] ) )->format( $dateformat ) . '</td><td></td>'; //phpcs:ignore
-			echo '</tr>';
-
-			foreach ( $invoice_info['data']['part'] as $part ) {
-
-				$description = preg_replace( '[&#xA;|&#xD;]', '<br/>', $part['description'] );
-
-				// add info to facilitate automated testing.
-				$row_info = sprintf( 'data-invoice_id=%s', $invoice_id );
-				$row_info = sprintf( 'data-customer_id=%s', $user_data->ID );
-				$row_info = sprintf( 'data-customernumber=%s', $invoice_data['invoice']['customernumber'] );
-
-				printf( '<tr %s %s>', $row_info, $alternate ? 'class="alternate"' : '' );
-				echo '<td></td>';
-				echo "<td class='column-columnname'>" . esc_html( $part['partnumber'] ) . '</td>';
-				echo "<td class='column-columnname'>" . wp_kses_post( $description ) . '</td>';
-				echo "<td class='column-columnname'>" . esc_html( $part['projectnumber'] ?? '' ) . '</td>';
-				echo "<td class='column-columnname'>" . wc_price( $part['sellprice'] ) . '</td>';
-				echo '</tr>';
-			}
-			echo '</tr>';
-			$alternate = ! $alternate;
 		}
 
-		echo '</tbody>';
-		echo '</table>';
+		$this->invoice_table->prepare_items();
+		?>
+
+			<div class="wrap">    
+				<h2><?php _e( 'Invoice Dashboard', 'rma-wc' ); ?></h2>
+					<div id="nds-wp-list-table-demo">			
+						<div id="nds-post-body">		
+					<form id="invoice-dashboard-form" method="get">					
+				<?php $this->invoice_table->display(); ?>					
+					</form>
+						</div>			
+					</div>
+			</div>
+		<?php
+
 	}
+
+	public function handle_create_invoice() {
+
+		if ( ! isset( $_GET['invoice_id'] ) ) {
+			wp_die( 'No invoice_id given' );
+		}
+		$invoice_id = esc_attr( $_GET['invoice_id'] ); //phpcs:ignore
+
+		$params = $_GET;
+		unset( $params['invoice_action'] );
+		unset( $params['_wp_nonce'] );
+		unset( $params['_wp_http_referer'] );
+		$params['invoice_action'] = 'confirm_invoices';
+		$params['_wp_nonce']      = wp_create_nonce( 'confirm_single_invoice_' . $invoice_id );
+		$params['page']           = 'invoice-dashboard';
+		$new_query_string         = http_build_query( $params );
+
+		if ( isset( $_GET['_wp_nonce'] ) && wp_verify_nonce( $_GET['_wp_nonce'], 'create_single_invoice_' . $invoice_id ) ) {
+
+			$orders = array();
+			if ( isset( $_GET['selected_order_ids'] ) ) {
+				$orders = array_map( 'intval', wp_parse_list( $_GET['selected_order_ids'] ) ); //phpcs:ignore
+			}
+			$t               = new RMA_WC_Collective_Invoicing();
+			$all_invoices    = $t->create_collective_invoice( true, true );
+			$current_invoice = $all_invoices[ $invoice_id ];
+
+			$current_invoice['data']['part'] = array_filter(
+				$current_invoice['data']['part'],
+				function( $v ) use ( $orders ) {
+					return in_array( $v['order_id'], $orders, true );}
+			);
+
+			$total_value = array_sum( array_column( $current_invoice['data']['part'], 'sellprice' ) );
+
+			?>
+			<h2>Verify Invoice <?php echo $invoice_id; ?></h2>
+			<?php
+			printf( '<a href="%s">Confirm Invoice</a>', '?' . esc_attr( $new_query_string ) );
+
+			$i = $current_invoice['data']['invoice'];
+			printf( '<div><strong>Invoice:</strong> %s </div>', esc_html( $i['invnumber'] ) );
+			printf( '<div><strong>Customer:</strong> %s </div>', esc_html( $i['customernumber'] ) );
+			printf( '<div><strong>Amount:</strong> %s </div>', wc_price( $total_value ) );
+
+			foreach ( $current_invoice['data']['part'] as $part ) {
+				echo( '<div>--</div>' );
+				printf( '<div><strong>Order:</strong> %s </div>', esc_html( $part['order_id'] ) );
+				printf( '<div><strong>Product:</strong> %s </div>', esc_html( $part['partnumber'] ) );
+				printf( '<div><strong>Text:</strong> %s </div>', esc_html( $part['description'] ) );
+				printf( '<div><strong>Price:</strong> %s </div>', wc_price( $part['sellprice'] ) );
+
+			}
+			// do you action
+
+		} else {
+
+			wp_die( esc_html__( 'Security check failure', 'rma_wc' ) );
+
+		}
+
+	}
+
+	public function handle_confirm_invoice() {
+
+		$created_invoices = array();
+
+		if ( ! isset( $_GET['invoice_id'] ) ) {
+			wp_die( 'No invoice_id given' );
+		}
+		$invoice_id = esc_attr( $_GET['invoice_id'] ); //phpcs:ignore
+
+		if ( isset( $_GET['_wp_nonce'] ) && wp_verify_nonce( $_GET['_wp_nonce'], 'confirm_single_invoice_' . $invoice_id ) ) {
+
+			$orders = array();
+			if ( isset( $_GET['selected_order_ids'] ) ) {
+				$orders = array_map( 'intval', wp_parse_list( $_GET['selected_order_ids'] ) ); //phpcs:ignore
+			}
+			$t               = new RMA_WC_Collective_Invoicing();
+			$all_invoices    = $t->create_collective_invoice( true, true );
+			$current_invoice = $all_invoices[ $invoice_id ];
+
+			$current_invoice['data']['part'] = array_filter(
+				$current_invoice['data']['part'],
+				function( $v ) use ( $orders ) {
+					return in_array( $v['order_id'], $orders, true );}
+			);
+
+			$total_value = array_sum( array_column( $current_invoice['data']['part'], 'sellprice' ) );
+
+			// create xml and send invoice to Run My Accounts
+			$api    = new RMA_WC_API();
+			$result = $api->create_xml_content( $current_invoice['data'], $orders, true );
+
+			if ( false !== $result ) {
+
+				$created_invoices[] = $invoice_id;
+
+			}
+
+			// were invoices created, and we should send an email?
+			if ( 0 < count( $created_invoices ) && SENDLOGEMAIL ) {
+
+				$headers       = array( 'Content-Type: text/html; charset=UTF-8' );
+				$email_content = sprintf( esc_html_x( 'The following collective invoices were sent: %s', 'email', 'rma-wc' ), implode( ', ', $created_invoices ) );
+				wp_mail( LOGEMAIL, esc_html_x( 'Collective invoices were sent', 'email', 'rma-wc' ), $email_content, $headers );
+
+			}
+
+			// Show the log.
+			echo wp_kses_post( RMA_WC_API::format_log_information( RMA_WC_API::$temporary_log ) );
+
+		} else {
+
+			wp_die( esc_html__( 'Security check failure', 'rma_wc' ) );
+
+		}
+	}
+
+
+
 }
+
+
