@@ -13,7 +13,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-$current_page = (int) basename( wp_parse_url( $_SERVER['REQUEST_URI'], PHP_URL_PATH ) ) ?: 1;
+$current_page = (int) basename( wp_parse_url( $_SERVER['REQUEST_URI'], PHP_URL_PATH ) ) ?: 1; // phpcs:ignore
 $invoices     = $args['invoices']['invoice'];
 $has_invoices = ! empty( $invoices );
 
@@ -21,6 +21,14 @@ echo '<div><strong>Customer Name:</strong> ' . esc_html( $args['customer_info'][
 echo '<div><strong>Invoicing ID:</strong> ' . esc_html( $args['customer_info']['customernumber'] ) . '</div>';
 echo '<div><strong>Invoicing Email:</strong> ' . esc_html( $args['customer_info']['email'] ) . '</div>';
 
+echo '<div><strong>Invoicing Address:</strong> ';
+echo esc_html( $args['customer_info']['address']['addressline'] ) . ';';
+if ( ! empty( $args['customer_info']['address']['additionalAddressline'] ) ) {
+	echo esc_html( $args['customer_info']['address']['additionalAddressline'] ) . ';';
+}
+echo esc_html( $args['customer_info']['address']['zip'] . ' ' . $args['customer_info']['address']['place'] );
+echo '</div>';
+echo '<div>' . esc_html__( 'Please contact support to change your billing information', 'rma-wc' ) . '</div> ';
 $max_num_per_page = 20;
 $max_num_pages    = intdiv( count( $invoices ), $max_num_per_page ) + 1;
 
