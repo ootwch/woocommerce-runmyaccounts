@@ -175,9 +175,12 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 	}
 
 	protected function get_views() {
+
+		$view = ! empty( $_GET['view'] ) ? sanitize_text_field( wp_unslash( $_GET['view'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
 		$status_links = array(
-			'all'    => '<a href="' . add_query_arg( 'view', 'all' ) . '">' . esc_html__( 'All', 'wc-rma' ) . '(' . count( $this->all_items ) . ')</a>',
-			'errors' => '<a href="' . add_query_arg( 'view', 'errors' ) . '">' . esc_html__( 'Errors', 'wc-rma' ) . '(' . count( $this->errors ) . ')</a>',
+			'all'    => '<a class="' . ( 'all' === $view ? 'current' : '' ) . '" href="' . add_query_arg( 'view', 'all' ) . '">' . esc_html__( 'All', 'wc-rma' ) . '(' . count( $this->all_items ) . ')</a>',
+			'errors' => '<a class="' . ( 'errors' === $view ? 'current' : '' ) . '" href="' . add_query_arg( 'view', 'errors' ) . '">' . esc_html__( 'Errors', 'wc-rma' ) . '(' . count( $this->errors ) . ')</a>',
 		);
 		return $status_links;
 	}

@@ -267,6 +267,116 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 			}
 		}
 
+		/**
+		 * Read customer data from RMA
+		 *
+		 * @return mixed
+		 */
+		public static function get_customers_data() {
+
+			if ( ! RMA_MANDANT || ! RMA_APIKEY ) {
+
+				$log_values = array(
+					'status'     => 'error',
+					'section_id' => '',
+					'section'    => esc_html_x( 'Get Customer', 'Log Section', 'rma-wc' ),
+					'mode'       => self::rma_mode(),
+					'message'    => esc_html__( 'Missing API data', 'rma-wc' ),
+				);
+
+				self::write_log( $log_values );
+
+				return false;
+
+			}
+
+			$url      = self::get_caller_url() . RMA_MANDANT . '/customers?api_key=' . RMA_APIKEY;
+			$response = wp_remote_get( $url, self::http_args );
+
+			$customers = array();
+
+			// Check response code
+			if ( 200 <> wp_remote_retrieve_response_code( $response ) ) {
+
+				$message  = esc_html__( 'Response Code', 'rma-wc' ) . ' ' . wp_remote_retrieve_response_code( $response );
+				$message .= ' ' . wp_remote_retrieve_response_message( $response );
+
+				if ( is_wp_error( $response ) ) {
+					$message .= ' ' . $response->get_error_message();
+				} else {
+					foreach ( $response as $object ) {
+						$message .= ' ' . $object->url;
+						break;
+					}
+				}
+
+				$log_values = array(
+					'status'     => 'error',
+					'section_id' => '',
+					'section'    => esc_html_x( 'Get Customer Data', 'Log Section', 'rma-wc' ),
+					'mode'       => self::rma_mode(),
+					'message'    => $message,
+				);
+
+				self::write_log( $log_values );
+
+				return false;
+
+			} else {
+
+				libxml_use_internal_errors( true );
+
+				$body = wp_remote_retrieve_body( $response );
+				$xml  = simplexml_load_string( $body );
+
+				if ( ! $xml ) {
+					// ToDO: Add this information to error log
+					foreach ( libxml_get_errors() as $error ) {
+						echo "\t", $error->message;
+					}
+
+					return false;
+
+				} else {
+					// Parse response
+					$array = json_decode( json_encode( (array) $xml ), true );
+
+					// Transform into array
+					foreach ( $array as $value ) {
+
+						foreach ( $value as $key => $customer ) {
+							$number = $customer['customernumber'];
+
+							if ( is_array( $customer['name'] ) ) {
+
+								if ( is_array( $customer['firstname'] ) ||
+									 is_array( $customer['lastname'] ) ) {
+									$name = '';
+								} else {
+									$name                              = $customer['firstname'] . ' ' . $customer['lastname'];
+									$customers[ $number ]['firstname'] = $customer['firstname'];
+									$customers[ $number ]['lastname']  = $customer['lastname'];
+								}
+							} else {
+								$name                         = $customer['name'];
+								$customers[ $number ]['name'] = $customer['name'];
+							}
+							$customers[ $number ]['customernumber'] = $customer['customernumber'] ?? '';
+							$customers[ $number ]['display_name']   = $name . ' ( ' . $number . ' )';
+							$customers[ $number ]['email']          = empty( $customer['email'] ?? '' ) ? '' : $customer['email'];
+							$customers[ $number ]['phone']          = empty( $customer['phone'] ?? '' ) ? '' : $customer['phone'];
+							$customers[ $number ]['firstname']      = empty( $customer['firstname'] ?? '' ) ? '' : $customer['firstname'];
+							$customers[ $number ]['lastname']       = empty( $customer['lastname'] ?? '' ) ? '' : $customer['lastname'];
+
+							$customers[ $number ]['typeofcontact'] = $customer['typeofcontact'] ?? '';
+							$customers[ $number ]['gender']        = $customer['gender'] ?? '';
+						}
+					}
+
+					return ( ! empty( $customers ) ? $customers : false );
+				}
+			}
+		}
 
 		/**
 		 * Read info on one customer
@@ -1416,7 +1526,6 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
     		);
 
             self::$temporary_log[] = $log_object;
-
 
 			$wpdb->insert(
 				$table_name,
