@@ -190,7 +190,7 @@ if ( ! class_exists('RMA_WC_Frontend' ) ) {
             return array_merge(
                 array_slice( $array, 0, $pos, $preserve_keys = true),
                 array( $key=>$value ),
-                array_slice( $array, $pos, $preserve_keys = true )
+                array_slice( $array, $pos, null, $preserve_keys = true )
             );
         }
 
