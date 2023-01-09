@@ -239,12 +239,17 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			foreach ( $display_data as $item ) {
 				$customernumber = $item['data']['invoice']['customernumber'];
 				$user_id        = esc_attr( $item['user_id'] );
-				$user_data      = get_userdata( $item['user_id'] );
-				$user_meta      = get_user_meta( $item['user_id'] );
-				$user_name      = $user_data->display_name;
-				$user_email     = $user_meta['user_email'] ?? '';
 
-				$search_string = $customernumber . $user_name . $user_id . $user_email;
+				if ( 0 === absint( $user_id ) ) {
+					$search_string = 'guest';
+				} else {
+					$user_data  = get_userdata( $item['user_id'] );
+					$user_meta  = get_user_meta( $item['user_id'] );
+					$user_name  = $user_data->display_name;
+					$user_email = $user_meta['user_email'] ?? '';
+
+					$search_string = $customernumber . $user_name . $user_id . $user_email;
+				}
 
 				if ( str_contains( strtoupper( $search_string ), strtoupper( $filter ) ) ) {
 					$filtered_items[] = $item;
@@ -343,11 +348,30 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 	public function column_col_customer_number( $item ) {
 		$user_data = get_userdata( $item['user_id'] );
 
-		$customernumber = $item['data']['invoice']['customernumber'];
-		if ( empty( $customernumber ) ) {
-			echo '<mark class="error invoice-error">' . esc_attr__( 'Customer missing in RMA!', 'wc-rma' ) . ' ( ' . esc_html( $user_data->display_name ) . ' ) </mark>';
+		if ( false !== $user_data ) {
+			$customernumber = $item['data']['invoice']['customernumber'];
+			if ( empty( $customernumber ) ) {
+				printf(
+					'<mark class="error invoice-error"> %s </mark> (  <a href="%s" > %s </a>  )',
+					esc_attr__( 'Customer missing in RMA! ', 'wc-rma' ),
+					esc_url( get_edit_user_link( $item['user_id'] ) ),
+					esc_html( $user_data->display_name )
+				);
+			} else {
+				printf(
+					' %s (  <a href="%s" > %s </a>  )',
+					wp_kses_post( $customernumber ),
+					esc_url( get_edit_user_link( $item['user_id'] ) ),
+					esc_html( $user_data->display_name )
+				);
+			}
 		} else {
-			echo wp_kses_post( $customernumber ) . ' ( ' . esc_html( $user_data->display_name ) . ' )';
+			echo ' < mark class = "error invoice-error" > Customer ' . esc_attr( $item['user_id'] ?? ' < item missing > ' ) . ' does not seem to exist . < / mark > ';
+			printf(
+				'<mark class="error invoice-error"> %s </mark> ',
+				// translators: %s = Woocommerce customer_id.
+				sprintf( esc_attr__( 'Customer %s does not seem to exist! ', 'wc-rma' ), esc_attr( $item['user_id'] ?? '<item missing>' ) )
+			);
 		}
 
 	}
