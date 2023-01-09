@@ -22,11 +22,14 @@ echo '<div><strong>Invoicing ID:</strong> ' . esc_html( $args['customer_info']['
 echo '<div><strong>Invoicing Email:</strong> ' . esc_html( $args['customer_info']['email'] ) . '</div>';
 
 echo '<div><strong>Invoicing Address:</strong> ';
-echo esc_html( $args['customer_info']['address']['addressline'] ) . ';';
+$address_line = empty( $args['customer_info']['address']['addressline'] ) ? '' : $args['customer_info']['address']['addressline'];
+echo esc_html( $address_line ) . ';';
 if ( ! empty( $args['customer_info']['address']['additionalAddressline'] ) ) {
 	echo esc_html( $args['customer_info']['address']['additionalAddressline'] ) . ';';
 }
-echo esc_html( $args['customer_info']['address']['zip'] . ' ' . $args['customer_info']['address']['place'] );
+$address_zip   = empty( $args['customer_info']['address']['zip'] ) ? '' : $args['customer_info']['address']['zip'];
+$address_place = empty( $args['customer_info']['address']['place'] ) ? '' : $args['customer_info']['address']['place'];
+echo esc_html( $address_zip . ' ' . $address_place );
 echo '</div>';
 echo '<div>' . esc_html__( 'Please contact support to change your billing information', 'rma-wc' ) . '</div> ';
 $max_num_per_page = 20;
@@ -67,7 +70,7 @@ $invoice_columns = array(
 								<?php do_action( 'woocommerce_my_account_my_invoices_column_' . $column_id, $invoice ); ?>
 
 							<?php elseif ( 'invnumber' === $column_id ) : ?>
-								<a href="<?php '/my-account/view-order/' . $invoice['invnumber'] .'/'; ?>">
+								<a href="<?php '/my-account/view-order/' . $invoice['invnumber'] . '/'; ?>">
 									<?php echo esc_html( _x( '#', 'hash before invoice number', 'woocommerce' ) . $invoice['invnumber'] ); ?>
 								</a>
 								<?php echo esc_html( $invoice['customer']['name'] ); ?>
