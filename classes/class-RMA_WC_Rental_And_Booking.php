@@ -104,15 +104,15 @@ class RMA_WC_Rental_And_Booking {
 
 		$canceled_order_id = null;
 		if ( $is_cancelation_order ) {
-            
-            if ( ! isset( $settings['rma-product-rnb-cancelation-article'] ) ) {
-                wp_die( 'RMA Rental Booking Cancelation Article is not configured' );
+
+			if ( ! isset( $settings['rma-product-rnb-cancelation-article'] ) ) {
+				wp_die( 'RMA Rental Booking Cancelation Article is not configured' );
 			}
-            $rental_booking_article = $settings['rma-product-rnb-cancelation-article'];
+			$rental_booking_article = $settings['rma-product-rnb-cancelation-article'];
 
 			$canceled_order_id = $item_rental_days_and_cost['price_breakdown']['order_modification_original_order'];
 			$canceled_order    = wc_get_order( $canceled_order_id );
-			
+
 			$canceled_order_booking_time = wp_date( $datetime_format, $canceled_order->get_date_created() );
 		} else {
 			$rental_booking_article = $settings['rma-product-rnb-rental-article'];
@@ -142,20 +142,20 @@ class RMA_WC_Rental_And_Booking {
 		// build multiline description.
 		$part['description'] = '';
 
-        if ( $is_cancelation_order ) {
-            $part['description']  = '#' . $order_id . ': ' . esc_html__( 'Cancelation of original order', 'woocommerce-sailcom' ) . ' #' . $canceled_order_id . self::XML_NL;
+		if ( $is_cancelation_order ) {
+			$part['description']  = '#' . $order_id . ': ' . esc_html__( 'Cancelation of original order', 'woocommerce-sailcom' ) . ' #' . $canceled_order_id . self::XML_NL;
 			$part['description'] .= $part_title;
 
-        } else {
+		} else {
 
 			$pickup_time                = new \DateTime( $rnb_order_meta['pickup_date'] . ' ' . $rnb_order_meta['pickup_time'], wp_timezone() );
 			$pickup_datetime_formatted  = wp_date( $datetime_format, $pickup_time->format( 'U' ) );
 			$dropoff_time               = new \DateTime( $rnb_order_meta['dropoff_date'] . ' ' . $rnb_order_meta['dropoff_time'], wp_timezone() );
 			$dropoff_datetime_formatted = wp_date( $datetime_format, $dropoff_time->format( 'U' ) );
 
-            $part['description']  = '#' . $order_id . ': ' . esc_html__( 'Reservation', 'woocommerce-sailcom' ) . self::XML_NL;
+			$part['description']  = '#' . $order_id . ': ' . esc_html__( 'Reservation', 'woocommerce-sailcom' ) . self::XML_NL;
 			$part['description'] .= $part_title . self::XML_NL . $pickup_datetime_formatted . ' - ' . $dropoff_datetime_formatted;
-        }
+		}
 
 		$part['description'] .= self::XML_NL . '(' . $confirmed_datetime_formatted . '/' . $order->get_customer_ip_address() . ')';
 
@@ -170,6 +170,16 @@ class RMA_WC_Rental_And_Booking {
 
 			$part['sellprice'] = $total;
 
+		}
+
+		// Attaching order notes.
+		$notes = $order->get_customer_note();
+
+		if ( ! empty( $notes ) ) {
+
+			$notes = str_replace( PHP_EOL, self::XML_NL, $notes );
+
+			$part['itemnote'] = wp_kses_post( $notes );
 		}
 
 		return $part;
