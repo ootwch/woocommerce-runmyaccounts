@@ -91,7 +91,7 @@ class RMA_WC_Rental_And_Booking {
 		}
 
 		// Set the article to the rental article for all rental bookings.
-		$settings               = get_option( 'wc_rma_settings' );
+		$settings = get_option( 'wc_rma_settings' );
 
 		$item_rental_days_and_cost = $item->get_meta( 'rnb_hidden_order_meta' )['rental_days_and_costs'] ?? false;
 
@@ -100,11 +100,7 @@ class RMA_WC_Rental_And_Booking {
 			return $part;
 		}
 
-		$order_meta_cancelation = $order->get_meta( 'cancellation_fee_order' );
-		$is_cancelation_order   = ( ! empty( $item_rental_days_and_cost['price_breakdown']['order_modification_type'] ) ) && 'cancelation' === $item_rental_days_and_cost['price_breakdown']['order_modification_type'];
-
-		// Just for debugging. TODO: Remove!
-		// $part['itemnote'] = htmlspecialchars( print_r( $order_meta, true ), ENT_XML1, 'UTF-8' );
+		$is_cancelation_order = ( ! empty( $item_rental_days_and_cost['price_breakdown']['order_modification_type'] ) ) && 'cancelation' === $item_rental_days_and_cost['price_breakdown']['order_modification_type'];
 
 		$canceled_order_id = null;
 		if ( $is_cancelation_order ) {
@@ -114,8 +110,8 @@ class RMA_WC_Rental_And_Booking {
 			}
             $rental_booking_article = $settings['rma-product-rnb-cancelation-article'];
 
-			$canceled_order_id           = $item_rental_days_and_cost['price_breakdown']['order_modification_original_order'];
-			$canceled_order = wc_get_order( $canceled_order_id );
+			$canceled_order_id = $item_rental_days_and_cost['price_breakdown']['order_modification_original_order'];
+			$canceled_order    = wc_get_order( $canceled_order_id );
 			
 			$canceled_order_booking_time = wp_date( $datetime_format, $canceled_order->get_date_created() );
 		} else {
@@ -134,23 +130,12 @@ class RMA_WC_Rental_And_Booking {
 		}
 
 		// get values
-		$days            = wc_get_order_item_meta( $item_id, '_return_hidden_days' );
-		$total           = wc_get_order_item_meta( $item_id, '_line_total' );
-		$tax             = wc_get_order_item_meta( $item_id, '_line_tax' );
-		$pickup_location = wc_get_order_item_meta( $item_id, 'Pickup Location' );
-		$pickup_date     = wc_get_order_item_meta( $item_id, 'Pickup Date & Time' );
-		$return_date     = wc_get_order_item_meta( $item_id, 'Return Date & Time' );
-		$total_days      = wc_get_order_item_meta( $item_id, 'Total Days' );
+		$total = wc_get_order_item_meta( $item_id, '_line_total' );
+		$tax   = wc_get_order_item_meta( $item_id, '_line_tax' );
 
 		$part_title = wc_get_order_item_meta( $item_id, 'Choose Inventory' );
 
-		$rnb_order_meta             = wc_get_order_item_meta( $item_id, 'rnb_hidden_order_meta' );
-		$rnb_price_breakdown        = wc_get_order_item_meta( $item_id, 'rnb_price_breakdown' );
-		$duration_breakdown_sailcom = $rnb_price_breakdown['duration_breakdown_sailcom'];
-		$discount_breakdown_sailcom = $rnb_price_breakdown['discount_breakdown_sailcom'];
-		$cancelation_breakdown      = $rnb_price_breakdown['cancelation_breakdown'] ?? '';
-
-
+		$rnb_order_meta = wc_get_order_item_meta( $item_id, 'rnb_hidden_order_meta' );
 
 		$confirmed_datetime_formatted = $order->get_date_created()->format( $datetime_format );
 
