@@ -89,10 +89,19 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 
 				// define constants with live values
 				if ( ! defined( 'RMA_MANDANT' ) ) {
-					DEFINE( 'RMA_MANDANT', ( $settings['rma-live-client'] ?? '' ) );
+					if( defined( 'RMA_MANDANT_LIVE' ) ) {
+						DEFINE( 'RMA_MANDANT', RMA_MANDANT_LIVE );
+					} else {
+						DEFINE( 'RMA_MANDANT', ( $settings['rma-live-client'] ?? '' ) );
+					}
 				}
+
 				if ( ! defined( 'RMA_APIKEY' ) ) {
-					DEFINE( 'RMA_APIKEY', ( $settings['rma-live-apikey'] ?? '' ) );
+					if( defined( 'RMA_APIKEY_LIVE' ) ) {
+						DEFINE( 'RMA_APIKEY', RMA_APIKEY_LIVE );
+					} else {
+						DEFINE( 'RMA_APIKEY', ( $settings['rma-live-apikey'] ?? '' ) );
+					}
 				}
 				if ( ! defined( 'RMA_CALLERSANDBOX' ) ) {
 					DEFINE( 'RMA_CALLERSANDBOX', false );
@@ -101,10 +110,18 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 
 				// set default operation mode to test
 				if ( ! defined( 'RMA_MANDANT' ) ) {
-					DEFINE( 'RMA_MANDANT', ( $settings['rma-test-client'] ?? '' ) );
+					if( defined( 'RMA_MANDANT_TEST' ) ) {
+						DEFINE( 'RMA_MANDANT', RMA_MANDANT_TEST );
+					} else {
+						DEFINE( 'RMA_MANDANT', ( $settings['rma-test-client'] ?? '' ) );
+					}
 				}
 				if ( ! defined( 'RMA_APIKEY' ) ) {
-					DEFINE( 'RMA_APIKEY', ( $settings['rma-test-apikey'] ?? '' ) );
+					if( defined( 'RMA_APIKEY_TEST' ) ) {
+						DEFINE( 'RMA_APIKEY', RMA_APIKEY_TEST );
+					} else {
+						DEFINE( 'RMA_APIKEY', ( $settings['rma-test-apikey'] ?? '' ) );
+					}
 				}
 				if ( ! defined( 'RMA_CALLERSANDBOX' ) ) {
 					DEFINE( 'RMA_CALLERSANDBOX', true );
