@@ -127,9 +127,19 @@ class RMA_WC_Rental_And_Booking {
 		$sku = $item_product->get_sku();
 		if ( ! empty( $sku ) ) {
 			$part['projectnumber'] = $sku;
+		} else {
+			$log_values = array(
+				'status'     => 'error',
+				'section_id' => $item_product->get_id(),
+				'section'    => $item_product->get_name(),
+				'mode'       => RMA_WC_API::rma_mode(),
+				'message'    => 'Product ' . $item_product->get_name() . ' does not have a valid SKU.',
+			);
+
+			( new RMA_WC_API() )->write_log( $log_values );
 		}
 
-		// get values
+		// get values.
 		$total = wc_get_order_item_meta( $item_id, '_line_total' );
 		$tax   = wc_get_order_item_meta( $item_id, '_line_tax' );
 
