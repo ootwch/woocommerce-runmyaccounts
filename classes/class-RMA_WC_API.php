@@ -1286,11 +1286,22 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 				$message = '[' . self::first_key_of_array( $response ) . '] ' . reset( $response ); // get value of first key = return message
 
 				// add order note to each order
+				$log_values = array();
 				foreach ( $order_ids as $order_id ) {
 
 					$order = wc_get_order( $order_id );
 					$note  = sprintf( esc_html_x( 'Invoice creation failed: %s', 'Order Note', 'rma-wc' ), __( $message, 'wma-wc' ) );
 					$order->add_order_note( $note );
+
+					$log_values = array(
+						'status'     => $status,
+						'section_id' => $order_id,
+						'section'    => esc_html_x( 'Invoice', 'Log Section', 'rma-wc' ),
+						'mode'       => self::rma_mode(),
+						'message'    => $message,
+					);
+	
+					( new RMA_WC_API() )->write_log( $log_values );
 
 					unset( $order );
 
@@ -1301,16 +1312,6 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 			}
 
 			if ( ( 'error' == LOGLEVEL && 'error' == $status ) || 'complete' == LOGLEVEL ) {
-
-				$log_values = array(
-					'status'     => $status,
-					'section_id' => $order_id,
-					'section'    => esc_html_x( 'Invoice', 'Log Section', 'rma-wc' ),
-					'mode'       => self::rma_mode(),
-					'message'    => $message,
-				);
-
-                (new RMA_WC_API)->write_log($log_values); 
 
 				// send email on error
                 if ( 'error' == $status && SENDLOGEMAIL ) (new RMA_WC_API)->send_log_email($log_values);
