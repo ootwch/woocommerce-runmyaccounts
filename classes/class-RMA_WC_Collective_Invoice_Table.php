@@ -24,6 +24,13 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 	public array $errors = array();
 
 	/**
+	 * The execution mode of the table. 'plan' or 'confirm'
+	 *
+	 * @var string
+	 */
+	public string $execution_mode = 'plan';
+
+	/**
 	 * The complete unfiltered unpaginated list of invoices.
 	 *
 	 * @var array
@@ -46,6 +53,124 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		// Register the javascript.
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_js' ), 999 );
 
+	}
+
+		/**
+		 * Function get_bulk_actions
+		 *
+		 * @return array bulk actions
+		 */
+	public function get_bulk_actions() {
+
+		if ( 'plan' === $this->execution_mode ) {
+
+			return array(
+				'create-invoice' => __( 'Create invoices for selected orders', 'woocommerce-sailcom' ),
+			);
+		}
+
+		if ( 'confirm' === $this->execution_mode ) {
+
+			return array(
+				'confirm-invoice' => __( 'CONFIRM: Create invoices for selected orders', 'woocommerce-sailcom' ),
+			);
+		}
+	}
+
+	/**
+	 * Function process_bulk_action
+	 *
+	 * @return void
+	 */
+	public function process_bulk_action() {
+
+		// security check!
+
+		if ( isset( $_POST['_wpnonce'] ) && ! empty( $_POST['_wpnonce'] ) ) {
+			$nonce = sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) );
+
+			$action = 'bulk-' . $this->_args['plural'];
+
+			if ( ! wp_verify_nonce( $nonce, $action ) ) {
+				wp_die( 'Nope! Security check failed!' );
+			}
+		}
+
+		$action = $this->current_action();
+
+		switch ( $action ) {
+
+			case 'create-invoice':
+				if ( ! current_user_can( 'manage_woocommerce' ) ) {
+					wp_die( 'Current user does not have the permission to create invoices.' );
+				}
+
+				$this->total_invoice_amount = 0;  // Updated by jQuery script.
+
+				/*
+				* -- Set current page to 1 --
+				*/
+
+				unset( $_GET['paged'] );
+
+				$this->execution_mode = 'confirm';
+				return;
+
+			case 'confirm-invoice':
+				if ( ! current_user_can( 'manage_woocommerce' ) ) {
+					wp_die( 'Current user does not have the permission to create invoices.' );
+				}
+
+				$invoice_title_en       = isset( $_POST['invoice-title-en'] ) ? sanitize_text_field( wp_unslash( $_POST['invoice-title-en'] ) ) : 'SailCom Abrechnung';
+				$invoice_description_en = isset( $_POST['invoice-description-en'] ) ? sanitize_textarea_field( wp_unslash( $_POST['invoice-description-en'] ) ) : '';
+				$invoice_footer_en      = isset( $_POST['invoice-footer-en'] ) ? sanitize_textarea_field( wp_unslash( $_POST['invoice-footer-en'] ) ) : '';
+
+				$created_invoices = array();
+
+				// create xml and send invoice to Run My Accounts.
+				$api = new RMA_WC_API();
+
+				foreach ( $this->items as $invoice_id => $current_invoice ) {
+
+					$current_invoice['data']['invoice']['description']  = esc_xml( $invoice_title_en );
+					$current_invoice['data']['invoice']['text_field_1'] = esc_xml( $invoice_description_en );
+					$current_invoice['data']['invoice']['notes']        = esc_xml( $invoice_footer_en );
+
+					$order_ids = array_column( $current_invoice['data']['part'], 'order_id' );
+
+					// $result = false;
+					$result = $api->create_xml_content( $current_invoice['data'], $order_ids, true );
+
+					if ( false !== $result ) {
+						$created_invoices[]                           = $invoice_id;
+						$this->items[ $invoice_id ]['created_status'] = 'OK';
+					} else {
+						$this->items[ $invoice_id ]['created_status'] = 'FAIL';
+					}
+				}
+
+				// were invoices created, and we should send an email?
+				if ( 0 < count( $created_invoices ) && SENDLOGEMAIL ) {
+
+					$headers       = array( 'Content-Type: text/html; charset=UTF-8' );
+					$email_content = sprintf( esc_html_x( 'The following collective invoices were sent: %s', 'email', 'rma-wc' ), implode( ', ', $created_invoices ) );
+					wp_mail( LOGEMAIL, esc_html_x( 'Collective invoices were sent', 'email', 'rma-wc' ), $email_content, $headers );
+
+				}
+
+				// Show the log.
+				echo '<div>';
+				echo wp_kses_post( RMA_WC_API::format_log_information( RMA_WC_API::$temporary_log ) );
+				echo '</div>';
+
+				$this->execution_mode = 'done';
+
+				break;
+
+			default:
+				// do nothing or something else.
+				return;
+		}
 	}
 
 	public function enqueue_admin_js() {
@@ -87,16 +212,24 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
         jQuery('input[name=\"order_id[]\"').change(
             debounce(function(event, data) {
                 console.log('y');
+				var total_sum = 0;
+				var number_selected = 0;
                 jQuery('tr.row_invoice').each(function() {
                     var sum = 0;
                     jQuery(this).next().find('td.column-sellprice bdi').each(function() {
                         if(jQuery(this).closest('tr').find('input:checkbox').is(':checked') ) {
                             sum += Number(jQuery(this).contents().filter(function() { return this.nodeType == Node.TEXT_NODE; }).first().text());
+							number_selected += 1;
                         }
                     })
                     jQuery(this).find('td.col_price .invoice_price_selected bdi').contents().filter(function() { return this.nodeType == Node.TEXT_NODE; }).first().replaceWith(sum.toFixed(2));
-
+					total_sum += sum;
                 });
+
+				jQuery('#selected-invoice-amount').contents().filter(function() { return this.nodeType == Node.TEXT_NODE; }).first().replaceWith(total_sum.toFixed(2));
+				jQuery('#selected-invoice-number').contents().filter(function() { return this.nodeType == Node.TEXT_NODE; }).first().replaceWith(number_selected.toFixed(0));
+				
+
             })
         );
         
@@ -120,12 +253,30 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
         
         
         });
+
+		// hide/unhinde invoice details
+		jQuery('a.expand-order-details-toggle').click( function(event) {
+			event.preventDefault();
+			jQuery( 'tr.order-details-' + event.target.getAttribute('invoice-id')).toggle();
+		})
+
+		// Invoice title / text tabs
+		jQuery('a.nav-tab').click( function(event) {
+			event.preventDefault();
+			console.log('toggle');
+			jQuery('.tab-content div').hide();
+			jQuery('a.nav-tab').removeClass('nav-tab-active');
+			jQuery('.tab-content .nav-tab-' + event.target.dataset.language).show();
+			jQuery('a.nav-tab-' + event.target.dataset.language).addClass('nav-tab-active');
+		});
+
+		jQuery('input[name=\"order_id[]\"').first().change();
         
         ";
 
-		wp_register_script( 'collective_invoice_table_js', false, array(), false, true );
+		wp_register_script( 'collective_invoice_table_js', false, array(), 124, true );
 		wp_add_inline_script( 'collective_invoice_table_js', $script );
-		wp_enqueue_script( 'collective_invoice_table_js', '', array( 'common-js' ), false, true );
+		wp_enqueue_script( 'collective_invoice_table_js', '', array( 'common-js' ), 124, true );
 	}
 
 	/**
@@ -150,27 +301,103 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 	 * @param string $which helps you decide if you add the markup after (bottom) or before (top) the list.
 	 */
 	public function extra_tablenav( $which ) {
-		if ( $which == 'top' ) {
-			// The code that goes before the table is here.
-			echo '<div><strong>Tabs for the languages</strong></div>';
-			echo '<div><strong>Numbers of errors:</strong> ' . count( $this->errors ) . '</div>';
-			echo '<div><strong>Select/Filter by user, date, language</strong></div>';
-			echo "<div><strong>Hello, I'm before the table</strong></div>";
-			echo '<div><strong>Total Invoice Amount</strong></div>';
-			echo '<div><strong>Total Number of Invoices</strong></div>';
-			echo '<div><strong>Selected Invoice Amount</strong></div>';
-			echo '<div><strong>Selected Number of Invoices</strong></div>';
-			// $this->show_action_form();
+
+		if ( 'top' === $which ) {
+			if ( 'confirm' === $this->execution_mode ) {
+				echo '<div id="selected-invoice-amount"><strong>Selected Invoice Amount</strong>' . esc_attr( count( $this->items ) ) . '</div>';
+				echo '<div id="selected-invoice-number"><strong>Selected Number of Invoices</strong></div>';
+			} else {
+				// The code that goes before the table is here.
+				echo '<div><strong>Tabs for the languages</strong></div>';
+				echo '<div><strong>Numbers of errors:</strong> ' . count( $this->errors ) . '</div>';
+				echo '<div><strong>Select/Filter by user, date, language</strong></div>';
+				echo "<div><strong>Hello, I'm before the table</strong></div>";
+				echo '<div><strong>Total Invoice Amount</strong></div>';
+				echo '<div><strong>Total Number of Invoices</strong></div>';
+				echo '<div id="selected-invoice-amount"><strong>Selected Invoice Amount</strong>d</div>';
+				echo '<div id="selected-invoice-number"><strong>Selected Number of Invoices</strong>d</div>';
+				// $this->show_action_form();
+			}
+			// Get the active tab from the $_GET param
+			$default_tab = null;
+			$tab         = isset( $_GET['tab'] ) ? $_GET['tab'] : $default_tab;
+
+			$readonly = 'plan' === $this->execution_mode ? '' : 'readonly';
+
+			$invoice_title_en       = isset( $_POST['invoice-title-en'] ) ? sanitize_text_field( wp_unslash( $_POST['invoice-title-en'] ) ) : 'SailCom Abrechnung';
+			$invoice_description_en = isset( $_POST['invoice-description-en'] ) ? sanitize_text_field( wp_unslash( $_POST['invoice-description-en'] ) ) : '';
+			$invoice_footer_en      = isset( $_POST['invoice-footer-en'] ) ? sanitize_text_field( wp_unslash( $_POST['invoice-footer-en'] ) ) : '';
+
+			?>
+
+			<nav class="nav-tab-wrapper">
+				<a href="#" data-language="en" class="nav-tab nav-tab-en nav-tab-active">English</a>
+				<a href="#" data-language="de" class="nav-tab nav-tab-de">Deutsch</a>
+				<a href="#" data-language="fr" class="nav-tab nav-tab-fr">Français</a>
+			</nav>
+
+			<div class="tab-content">
+			<h2>ToDo: Only english works!</h2>
+			<div class="nav-tab-en">
+
+			<label>EN Title</label><br>
+			<input <?php echo esc_attr( $readonly ); ?> type="text" name = "invoice-title-en" value="<?php echo esc_attr( $invoice_title_en ); ?>"><br>
+
+			<label>EN Header Text</label><br>
+			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice-description-en" cols="80" rows="3"><?php echo esc_attr( $invoice_description_en ); ?></textarea><br>
+
+			<label>EN Footer Text</label><br>
+			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice-footer-en" cols="80" rows="10"><?php echo esc_attr( $invoice_footer_en ); ?></textarea><br>
+			</div>
+
+			<div hidden class="nav-tab-de">
+
+			<label>DE Title</label><br>
+			<input <?php echo esc_attr( $readonly ); ?> type="text" name = "invoice-title-de"><br>
+
+			<label>DE Header Text</label><br>
+			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice-description-de" cols="80" rows="3"></textarea><br>
+
+			<label>DE Footer Text</label><br>
+			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice-footer-de" cols="80" rows="10"></textarea><br>
+
+			</div>
+
+			<div hidden class="nav-tab-fr">
+
+			<label>FR Title</label><br>
+			<input <?php echo esc_attr( $readonly ); ?> type="text" name = "invoice-title-fr"><br>
+
+			<label>FR Header Text</label><br>
+			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice-description-fr" cols="80" rows="3"></textarea><br>
+
+			<label>FR Footer Text</label><br>
+			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice-footer-fr" cols="80" rows="10"></textarea><br>
+
+			</div>
+
+
+			</div>
+
+
+			<?php
 
 			echo '<input type="hidden" name="page" value="' . esc_attr( $_REQUEST['page'] ) . '" />';
 			$this->search_box( 'Search Customer', 'customer-search' );
 			$this->views();
 
 		}
-		if ( $which == 'bottom' ) {
+		if ( 'botttom' === $which ) {
 			// The code that goes after the table is there.
 			echo "Hi, I'm after the table";
-			// $this->show_action_form();
+
+			if ( 'done' === $this->execution_mode ) {
+				// Show the log.
+				echo '<div>';
+				echo wp_kses_post( RMA_WC_API::format_log_information( RMA_WC_API::$temporary_log ) );
+				echo '</div>';
+			}
+			// $this->show_action_form();<form
 		}
 	}
 
@@ -199,6 +426,10 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			'col_price'           => __( 'Price' ),
 		);
 
+		if ( 'confirm-invoice' === $this->current_action() ) {
+			$columns['col_creation_status'] = __( 'Invoice Created' );
+		}
+
 		return $columns;
 	}
 
@@ -221,7 +452,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		);
 	}
 
-
 	/**
 	 * Prepare the table with different parameters, pagination, columns and table elements
 	 */
@@ -231,6 +461,14 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		$display_data    = $t->create_collective_invoice( true, true );
 		$this->all_items = $display_data;
 		// $display_data = $t->get_not_invoiced_orders();
+
+		// Only show selected invoiced
+		$invoice_ids = ! empty( $_POST['invoice_id'] ) ? array_map( 'esc_attr', array_map( 'sanitize_text_field', wp_unslash( $_POST['invoice_id'] ) ) ) : array();
+		if ( ! empty( $invoice_ids ) ) {
+			$display_data = array_filter( $display_data, fn( $i ) => in_array( $i, $invoice_ids, true ), ARRAY_FILTER_USE_KEY );
+			unset( $_GET['paged'] );
+			unset( $_REQUEST['paged'] );
+		}
 
 		// Filter data
 		$filter = ! empty( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
@@ -295,7 +533,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		$totalitems = count( $display_data );
 
 		// How many to display per page?
-		$perpage = 5;
+		$perpage = 500;
 
 		// Which page is this?
 		$paged = ! empty( $_GET['paged'] ) ? sanitize_text_field( wp_unslash( $_GET['paged'] ) ) : '';
@@ -330,7 +568,14 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			$this->items = $display_data;
 
 		}
+
+		$this->process_bulk_action();
 	}
+
+	public function column_col_creation_status( $item ) {
+		echo esc_attr( $item['created_status'] ?? '--X--' );
+	}
+
 
 	public function column_col_invoice_id( $item ) {
 
@@ -366,7 +611,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 				);
 			}
 		} else {
-			echo ' < mark class = "error invoice-error" > Customer ' . esc_attr( $item['user_id'] ?? ' < item missing > ' ) . ' does not seem to exist . < / mark > ';
 			printf(
 				'<mark class="error invoice-error"> %s </mark> ',
 				// translators: %s = Woocommerce customer_id.
@@ -387,8 +631,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			$total_amount += $part['sellprice'];
 		}
 
-		echo '<div class="invoice_price_total"><span>' . __( 'Total:', 'wc-rma' ) . '</span>' . wc_price( $total_amount ) . '</div>' . PHP_EOL;
-		echo '<div class="invoice_price_selected"><span>' . __( 'Selected:', 'wc-rma' ) . '</span>' . wc_price( $total_amount ) . '</div>' . PHP_EOL;
+		echo '<div class="invoice_price_total">' . wp_kses_post( wc_price( $total_amount ) ) . '</div>' . PHP_EOL;
 
 	}
 
@@ -401,10 +644,26 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 	 */
 	public function column_cb( $item ) {
 		$invoice_id = $item['data']['invoice']['invnumber'];
-		return sprintf(
-			'<input type="checkbox" data-invoice_id="%1$s" name="invoice_id[]" value="%1$s" checked />',
-			$invoice_id
-		);
+
+		if ( 'plan' === $this->execution_mode ) {
+			printf(
+				'<input type="checkbox" data-invoice_id="%1$s" name="invoice_id[]" value="%1$s" checked />',
+				esc_attr( $invoice_id )
+			);
+		} else {
+			printf(
+				'<input disabled type="checkbox" data-invoice_id="%1$s" name="invoice_id[]" value="%1$s" checked />',
+				esc_attr( $invoice_id )
+			);
+			printf(
+				'<input type="hidden" data-invoice_id="%1$s" name="invoice_id[]" value="%1$s"/>',
+				esc_attr( $invoice_id )
+			);
+
+		}
+
+		printf( '<div><a href="#" class="expand-order-details-toggle" invoice-id="%s">Expand</a></div>', esc_attr( $invoice_id ) );
+
 	}
 
 	/**
@@ -445,17 +704,22 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			// $row_info = sprintf( 'data-customer_id=%s', $user_data->ID );
 			// $row_info = sprintf( 'data-customernumber=%s', $invoice_data['invoice']['customernumber'] );
 
-			$order_rows .= sprintf( PHP_EOL . '<tr %s>', $alternate ? 'class="alternate"' : '' );
+			$order_rows .= sprintf( PHP_EOL . '<tr style="display:none" class="%s %s">', $alternate ? 'alternate' : '', 'order-details-' . esc_attr( $invoice_id ) );
+
+			$alternate = ! $alternate;
 			// $order_rows .= sprintf( PHP_EOL . '<tr %s %s>', $row_info, $alternate ? 'class="alternate"' : '' );
 
 			// Checkbox for orders
+			/*
 			$order_rows .= '<td>';
 			$order_rows .= sprintf(
 				'<label class="screen-reader-text" for="invoice_' . $invoice_id . '">' . sprintf( __( 'Select %s' ), $invoice_id ) . '</label>'
 				 . '<input type="checkbox" data-invoice_id=' . $invoice_id
-				 . ' name="order_id[]" data-order_id=' . $part['order_id'] . ' checked />'
+				 . ( ( 'plan' === $this->execution_mode ) ? '' : ' disabled ' )
+				 . ' name="order_id[]" data-order_id=' . $part['order_id'] . ' value="' . $part['order_id'] . '" checked />'
 			);
-			echo '</td>' . PHP_EOL;
+			$order_rows .= '</td>' . PHP_EOL;
+			*/
 
 			$order_rows .= "<td class='column-partnumber'>" . esc_html( $part['partnumber'] ) . '</td>' . PHP_EOL;
 			$order_rows .= "<td class='column-description'>" . wp_kses_post( $description ) . '</td>' . PHP_EOL;

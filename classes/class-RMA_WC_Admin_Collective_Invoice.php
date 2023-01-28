@@ -113,7 +113,7 @@ class RMA_WC_Admin_Collective_Invoice {
 				<h2><?php _e( 'Invoice Dashboard', 'rma-wc' ); ?></h2>
 					<div id="nds-wp-list-table-demo">			
 						<div id="nds-post-body">		
-					<form id="invoice-dashboard-form" method="get">					
+					<form id="invoice-dashboard-form" method="post">					
 				<?php $this->invoice_table->display(); ?>					
 					</form>
 						</div>			
