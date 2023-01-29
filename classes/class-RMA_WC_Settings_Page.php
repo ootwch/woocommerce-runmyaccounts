@@ -595,7 +595,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
             add_settings_field(
                 $id,
                 esc_html__('Catch-All Account', 'rma-wc'),
-                array( $this, 'rma_customer_accounts_cb'), // individual callback
+                array( $this, 'option_input_text_cb'), // individual callback
                 $this->option_page_general,
                 $section,
                 array( 'option_group' => $this->option_group_general,
