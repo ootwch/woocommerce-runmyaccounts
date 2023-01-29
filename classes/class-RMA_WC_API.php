@@ -469,10 +469,16 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 			}
 		}
 
+
 		/**
-		 * Read invoices of one customer
+		 * Read invoices
+		 *
+		 * @param mixed  $rma_customer_id customernumber.
+		 * @param string $from YYYY-MM-DD.
+		 * @param mixed  $to YYYY-MM-DD.
+		 * @return mixed .
 		 */
-		public function get_customer_invoices( $rma_customer_id, $from = '1900-01-01', $to = null ) {
+		public function get_customer_invoices( $rma_customer_id = null, $from = '1900-01-01', $to = null ) {
 			if ( ! RMA_MANDANT || ! RMA_APIKEY ) {
 
 				$log_values = array(
@@ -489,8 +495,10 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 
 			}
 
-			$url  = self::get_caller_url() . RMA_MANDANT . '/invoices' . '?api_key=' . RMA_APIKEY;
-			$url .= '&customer_number=' . sanitize_key( $rma_customer_id );
+			$url = self::get_caller_url() . RMA_MANDANT . '/invoices' . '?api_key=' . RMA_APIKEY;
+			if ( ! empty( $rma_customer_id ) ) {
+				$url .= '&customer_number=' . sanitize_key( $rma_customer_id );
+			}
 			$url .= '&from=' . sanitize_key( $from );
 			if ( ! empty( $to ) ) {
 				$url .= '&to=' . sanitize_key( $to );
@@ -517,6 +525,83 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 					'status'     => 'error',
 					'section_id' => '',
 					'section'    => esc_html_x( 'Get Customer Invoice', 'Log Section', 'rma-wc' ),
+					'mode'       => self::rma_mode(),
+					'message'    => $message,
+				);
+
+				self::write_log( $log_values );
+
+				return false;
+
+			} else {
+
+				libxml_use_internal_errors( true );
+
+				$body = wp_remote_retrieve_body( $response );
+				$xml  = simplexml_load_string( $body );
+
+				if ( false === $xml ) {
+					// ToDO: Add this information to error log
+					foreach ( libxml_get_errors() as $error ) {
+						echo "\t", $error->message;
+					}
+
+					return false;
+
+				} else {
+					// Parse response
+					$invoices = json_decode( json_encode( (array) $xml ), true );
+					return ( ! empty( $invoices ) ? $invoices : array( 'invoice' => array() ) );
+				}
+			}
+		}
+
+		/**
+		 * Read vendor invoices
+		 *
+		 * @return mixed .
+		 */
+		public function get_vendor_invoices() {
+			if ( ! RMA_MANDANT || ! RMA_APIKEY ) {
+
+				$log_values = array(
+					'status'     => 'error',
+					'section_id' => '',
+					'section'    => esc_html_x( 'Get Vendor Invoices', 'Log Section', 'rma-wc' ),
+					'mode'       => self::rma_mode(),
+					'message'    => esc_html__( 'Missing API data', 'rma-wc' ),
+				);
+
+				self::write_log( $log_values );
+
+				return false;
+
+			}
+
+			$url = self::get_caller_url() . RMA_MANDANT . '/payables' . '?api_key=' . RMA_APIKEY;
+
+			$response = wp_remote_get( $url, self::http_args );
+
+			// Check response code.
+			if ( 200 <> wp_remote_retrieve_response_code( $response ) ) {
+
+				$message  = esc_html__( 'Response Code', 'rma-wc' ) . ' ' . wp_remote_retrieve_response_code( $response );
+				$message .= ' ' . wp_remote_retrieve_response_message( $response );
+
+				if ( is_wp_error( $response ) ) {
+					$message .= ' ' . $response->get_error_message();
+				} else {
+					$response = $response['http_response'];
+					foreach ( $response as $object ) {
+						$message .= ' ' . $object->url;
+						break;
+					}
+				}
+
+				$log_values = array(
+					'status'     => 'error',
+					'section_id' => '',
+					'section'    => esc_html_x( 'Get Vendor Invoices', 'Log Section', 'rma-wc' ),
 					'mode'       => self::rma_mode(),
 					'message'    => $message,
 				);
@@ -734,6 +819,216 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 					return ( ! empty( $sku_list ) ? $sku_list : false );
 				}
 			}
+		}
+
+
+		/**
+		 * Read charts list from RMA
+		 *
+		 * @return mixed
+		 *
+		 * @since 1.5.0
+		 */
+		public function get_charts() {
+
+			if ( ! RMA_MANDANT || ! RMA_APIKEY ) {
+
+				$log_values = array(
+					'status'     => 'error',
+					'section_id' => '',
+					'section'    => esc_html_x( 'Get Charts', 'Log Section', 'rma-wc' ),
+					'mode'       => self::rma_mode(),
+					'message'    => esc_html__( 'Missing API data', 'rma-wc' ),
+				);
+
+				self::write_log( $log_values );
+
+				return false;
+
+			}
+
+			$url = self::get_caller_url() . RMA_MANDANT . '/charts?api_key=' . RMA_APIKEY;
+
+			$response = wp_remote_get( $url, self::http_args );
+
+			// Check response code
+			if ( 200 <> wp_remote_retrieve_response_code( $response ) ) {
+
+				$message  = esc_html__( 'Response Code', 'rma-wc' ) . ' ' . wp_remote_retrieve_response_code( $response );
+				$message .= ' ' . wp_remote_retrieve_response_message( $response );
+
+				$response = (array) $response['http_response'];
+
+				foreach ( $response as $object ) {
+					$message .= ' ' . $object->url;
+					break;
+				}
+
+				$log_values = array(
+					'status'     => 'error',
+					'section_id' => '',
+					'section'    => esc_html_x( 'Get Charts', 'Log Section', 'rma-wc' ),
+					'mode'       => self::rma_mode(),
+					'message'    => $message,
+				);
+
+				self::write_log( $log_values );
+
+				return false;
+
+			} else {
+
+				libxml_use_internal_errors( true );
+
+				$body = wp_remote_retrieve_body( $response );
+				$xml  = simplexml_load_string( $body );
+
+				if ( ! $xml ) {
+					// ToDO: Add this information to error log
+					foreach ( libxml_get_errors() as $error ) {
+						echo "\t", $error->message;
+					}
+
+					return false;
+
+				} else {
+					// Parse response
+					$array = json_decode( json_encode( (array) $xml ), true );
+
+					return ( ! empty( $array ) ? $array : false );
+				}
+			}
+		}
+
+		/**
+		 * Get all transactions that are linked to a project
+		 *
+		 * @param bool $force_refresh .
+		 * @return mixed .
+		 */
+		public function get_project_bookings( $force_refresh = false ) {
+
+			if ( ! RMA_MANDANT || ! RMA_APIKEY ) {
+
+				$log_values = array(
+					'status'     => 'error',
+					'section_id' => '',
+					'section'    => esc_html_x( 'Get Invoices', 'Log Section', 'rma-wc' ),
+					'mode'       => self::rma_mode(),
+					'message'    => esc_html__( 'Missing API data', 'rma-wc' ),
+				);
+
+				self::write_log( $log_values );
+
+				return false;
+
+			}
+
+			// Transient.
+			$transient = 'rma_project_booking_transient';
+			$bookings  = get_transient( $transient );
+
+			// $force_refresh = true; // for debugging.
+
+			if ( $force_refresh || false === $bookings ) {
+
+				// first get the charts, so we have names to the accounts.
+				$charts_raw = $this->get_charts();
+
+				$chart_lookup = array();
+				foreach ( $charts_raw['chart'] as $account ) {
+					$a                           = $account['@attributes'];
+					$chart_lookup[ $a['accno'] ] = $a['description'];
+				}
+
+				// this code runs when there is no valid transient set.
+				$bookings = array();
+
+				// Save memory - only load one month at a time starting 01.01.2022.
+
+				$start_date = new \DateTime( '2022-01-01' );
+				$end_date   = new \DateTime( 'first day of last month' );
+
+				$interval = \DateInterval::createFromDateString( '1 month' );
+				$period   = new \DatePeriod( $start_date, $interval, $end_date );
+
+				foreach ( $period as $date ) {
+					$customer_invoices = $this->get_customer_invoices( null, $date->format( 'Y-m-d' ), $date->modify( 'last day of' )->format( 'Y-m-d' ) );
+
+					foreach ( $customer_invoices['invoice'] as $invoice ) {
+						if ( ! isset( $invoice['parts'] ) ) {
+							continue;
+						}
+						foreach ( $invoice ['parts']['part'] as $part ) {
+							if ( ! isset( $part['sellprice'] ) || 0 === absint( $part['sellprice'] ) ) {
+								continue;
+							}
+
+							// If the project number is not set we are not interested in this transaction.
+							if ( ! isset( $part['projectnumber'] ) ) {
+								continue;
+							}
+
+							$bookings[] = array(
+								'type'          => 'receivable',
+								'accountnumber' => $part['income_accno'],
+								'accountname'   => $chart_lookup[ $part['income_accno'] ],
+								'projectnumber' => $part['projectnumber'],
+								'date'          => $invoice['transdate'],
+								'description'   => $part['description'],
+								'value'         => $part['sellprice'],
+							);
+						}
+					}
+				}
+
+				$vendor_invoices = $this->get_vendor_invoices();
+				foreach ( $vendor_invoices['payable'] as $invoice ) {
+
+					foreach ( $invoice ['expenseentries'] as $parts ) {
+
+						// The xml parser cannot know if a single element should be an array.
+						if ( array_key_exists( 0, $parts ) ) {
+							$parts_array = $parts;
+						} else {
+							$parts_array = array( $parts );
+						}
+
+						foreach ( $parts_array as $part ) {
+
+							if ( 0 === absint( $part['amount'] ) ) {
+								continue;
+							}
+
+							// If the project number is not set we are not interested in this transaction.
+							if ( ! isset( $part['projectNumber'] ) ) {
+								continue;
+							}
+
+
+							$bookings[] = array(
+								'type'          => 'payable',
+								'accountnumber' => $part['expense_accno'],
+								'accountname'   => $chart_lookup[ $part['expense_accno'] ],
+								'projectnumber' => $part['projectNumber'],
+								'date'          => $invoice['transdate'],
+								'description'   => wp_strip_all_tags( html_entity_decode( $invoice['description'] ) ),
+								'value'         => $part['amount'],
+							);
+						}
+					}
+				}
+
+				usort(
+					$bookings,
+					function ( $a, $b ) {
+						return strtotime( $a['date'] ) - strtotime( $b['date'] );
+					}
+				);
+				set_transient( $transient, $bookings, 3 * DAY_IN_SECONDS ); // Keep for 3 days.
+
+			}
+			return $bookings;
 		}
 
 
