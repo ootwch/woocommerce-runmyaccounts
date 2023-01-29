@@ -472,7 +472,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 		/**
 		 * Read invoices of one customer
 		 */
-		public function get_customer_invoices( $rma_customer_id ) {
+		public function get_customer_invoices( $rma_customer_id, $from = '1900-01-01', $to = null ) {
 			if ( ! RMA_MANDANT || ! RMA_APIKEY ) {
 
 				$log_values = array(
@@ -489,8 +489,12 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 
 			}
 
-			$url      = self::get_caller_url() . RMA_MANDANT . '/invoices' . '?api_key=' . RMA_APIKEY;
-			$url     .= '&customer_number=' . sanitize_key( $rma_customer_id );
+			$url  = self::get_caller_url() . RMA_MANDANT . '/invoices' . '?api_key=' . RMA_APIKEY;
+			$url .= '&customer_number=' . sanitize_key( $rma_customer_id );
+			$url .= '&from=' . sanitize_key( $from );
+			if ( ! empty( $to ) ) {
+				$url .= '&to=' . sanitize_key( $to );
+			}
 			$response = wp_remote_get( $url, self::http_args );
 
 			// Check response code
