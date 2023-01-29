@@ -549,9 +549,13 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 					return false;
 
 				} else {
-					// Parse response
-					$invoices = json_decode( json_encode( (array) $xml ), true );
-					return ( ! empty( $invoices ) ? $invoices : array( 'invoice' => array() ) );
+					// Parse response.
+					$invoices = array();
+					foreach ( $xml->invoice as $invoice ) {
+						$invoices[] = json_decode( json_encode( (array) $invoice ), true );
+					}
+
+					return ( ! empty( $invoices ) ? array( 'invoice' => $invoices ) : array( 'invoice' => array() ) );
 				}
 			}
 		}
@@ -627,8 +631,14 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 
 				} else {
 					// Parse response
-					$invoices = json_decode( json_encode( (array) $xml ), true );
-					return ( ! empty( $invoices ) ? $invoices : array( 'invoice' => array() ) );
+					// Parse response.
+					$invoices = array();
+					foreach ( $xml->invoice as $invoice ) {
+						$invoices[] = json_decode( json_encode( (array) $invoice ), true );
+					}
+
+					return ( ! empty( $invoices ) ? array( 'invoice' => $invoices ) : array( 'invoice' => array() ) );
+
 				}
 			}
 		}
