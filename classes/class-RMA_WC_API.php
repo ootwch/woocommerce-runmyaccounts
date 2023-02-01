@@ -630,14 +630,13 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 					return false;
 
 				} else {
-					// Parse response
 					// Parse response.
-					$invoices = array();
-					foreach ( $xml->invoice as $invoice ) {
-						$invoices[] = json_decode( json_encode( (array) $invoice ), true );
+					$payables = array();
+					foreach ( $xml->payable as $payable ) {
+						$payables[] = json_decode( json_encode( (array) $payable ), true );
 					}
 
-					return ( ! empty( $invoices ) ? array( 'invoice' => $invoices ) : array( 'invoice' => array() ) );
+					return ( ! empty( $payables ) ? array( 'payable' => $payables ) : array( 'payable' => array() ) );
 
 				}
 			}
@@ -963,70 +962,85 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 				$period   = new \DatePeriod( $start_date, $interval, $end_date );
 
 				foreach ( $period as $date ) {
-					$customer_invoices = $this->get_customer_invoices( null, $date->format( 'Y-m-d' ), $date->modify( 'last day of' )->format( 'Y-m-d' ) );
+					$from = $date->format( 'Y-m-d' );
+					$to = $date->modify('last day of')->format('Y-m-d');
 
-					foreach ( $customer_invoices['invoice'] as $invoice ) {
-						if ( ! isset( $invoice['parts'] ) ) {
+					$customer_invoices = $this->get_customer_invoices( null, $from, $to );
+					foreach ($customer_invoices['invoice'] as $invoice) {
+
+						if (!isset($invoice['parts'])) {
 							continue;
 						}
-						foreach ( $invoice ['parts']['part'] as $part ) {
-							if ( ! isset( $part['sellprice'] ) || 0 === absint( $part['sellprice'] ) ) {
-								continue;
+
+						foreach ($invoice['parts'] as $parts) {
+
+							// The xml parser cannot know if a single element should be an array.
+							if (array_key_exists(0, $parts)) {
+								$parts_array = $parts;
+							} else {
+								$parts_array = array($parts);
 							}
 
-							// If the project number is not set we are not interested in this transaction.
-							if ( ! isset( $part['projectnumber'] ) ) {
-								continue;
-							}
+							foreach ($parts_array as $part) {
 
-							$bookings[] = array(
-								'type'          => 'receivable',
-								'accountnumber' => $part['income_accno'],
-								'accountname'   => $chart_lookup[ $part['income_accno'] ],
-								'projectnumber' => $part['projectnumber'],
-								'date'          => $invoice['transdate'],
-								'description'   => $part['description'],
-								'value'         => $part['sellprice'],
-							);
+								if (!isset($part['sellprice']) || 0 === absint($part['sellprice'])) {
+									continue;
+								}
+
+								// If the project number is not set we are not interested in this transaction.
+								if (!isset($part['projectnumber'])) {
+									continue;
+								}
+
+								$bookings[] = array(
+									'type'          => 'receivable',
+									'accountnumber' => $part['income_accno'],
+									'accountname'   => $chart_lookup[$part['income_accno']],
+									'projectnumber' => $part['projectnumber'],
+									'date'          => $invoice['transdate'],
+									'description'   => $part['description'],
+									'value'         => $part['sellprice'],
+								);
+							}
 						}
 					}
 				}
 
 				$vendor_invoices = $this->get_vendor_invoices();
-				foreach ( $vendor_invoices['payable'] as $invoice ) {
+					foreach ( $vendor_invoices['payable'] as $payable ) {
 
-					foreach ( $invoice ['expenseentries'] as $parts ) {
+						foreach ( $payable['expenseentries'] as $parts ) {
 
-						// The xml parser cannot know if a single element should be an array.
-						if ( array_key_exists( 0, $parts ) ) {
-							$parts_array = $parts;
-						} else {
-							$parts_array = array( $parts );
-						}
-
-						foreach ( $parts_array as $part ) {
-
-							if ( 0 === absint( $part['amount'] ) ) {
-								continue;
+							// The xml parser cannot know if a single element should be an array.
+							if ( array_key_exists( 0, $parts ) ) {
+								$parts_array = $parts;
+							} else {
+								$parts_array = array( $parts );
 							}
 
-							// If the project number is not set we are not interested in this transaction.
-							if ( ! isset( $part['projectNumber'] ) ) {
-								continue;
+							foreach ( $parts_array as $part ) {
+
+								if ( 0 === absint( $part['amount'] ) ) {
+									continue;
+								}
+
+								// If the project number is not set we are not interested in this transaction.
+								if ( ! isset( $part['projectNumber'] ) ) {
+									continue;
+								}
+
+
+								$bookings[] = array(
+									'type'          => 'payable',
+									'accountnumber' => $part['expense_accno'],
+									'accountname'   => $chart_lookup[$part['expense_accno']],
+									'projectnumber' => $part['projectNumber'],
+									'date'          => $payable['transdate'],
+									'description'   => wp_strip_all_tags(html_entity_decode($payable['description'])),
+									'value'         => $part['amount'],
+								);
 							}
-
-
-							$bookings[] = array(
-								'type'          => 'payable',
-								'accountnumber' => $part['expense_accno'],
-								'accountname'   => $chart_lookup[ $part['expense_accno'] ],
-								'projectnumber' => $part['projectNumber'],
-								'date'          => $invoice['transdate'],
-								'description'   => wp_strip_all_tags( html_entity_decode( $invoice['description'] ) ),
-								'value'         => $part['amount'],
-							);
-						}
-					}
+						}			
 				}
 
 				usort(
