@@ -917,6 +917,13 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 		 */
 		public function get_project_bookings( $force_refresh = false ) {
 
+			/**
+			 * Array of accounts where the description is replaced by the account name.
+			 * Mainly used to make sure that expense recipients are not named in the "public"
+			 * listing.
+			 */
+			$anonymizing_accounts = array( 2005 );
+
 			if ( ! RMA_MANDANT || ! RMA_APIKEY ) {
 
 				$log_values = array(
@@ -1027,6 +1034,13 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 								// If the project number is not set we are not interested in this transaction.
 								if ( ! isset( $part['projectNumber'] ) ) {
 									continue;
+								}
+
+
+								if ( in_array( $part['expense_accno'], $anonymizing_accounts, true ) ) {
+									$description_text = $chart_lookup[ $part['expense_accno'] ];
+								} else {
+									$description_text = wp_strip_all_tags( html_entity_decode( $payable['description'] ) );
 								}
 
 
