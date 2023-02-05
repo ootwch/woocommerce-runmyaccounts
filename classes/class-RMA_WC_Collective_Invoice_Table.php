@@ -585,7 +585,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 		$actions = array(
 
-			'create_invoice' => sprintf( '<a href="#" data-nonce="%s" data-invoice_id="%s">%s</a>', $nonce, $invoice_id, __( 'Create Invoice', 'wc_rma' ) ),
+			'create_invoice' => sprintf( '<a href="#" data-nonce="%s" data-invoice_id="%s">%s</a>', $nonce, $invoice_id, __( 'Create Invoice', 'rma-wc' ) ),
 		);
 		echo $this->row_actions( $actions );
 	}
