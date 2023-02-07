@@ -1050,7 +1050,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 									'accountname'   => $chart_lookup[$part['expense_accno']],
 									'projectnumber' => $part['projectNumber'],
 									'date'          => $payable['transdate'],
-									'description'   => wp_strip_all_tags(html_entity_decode($payable['description'])),
+								'description'   => $description_text,
 									'value'         => $part['amount'],
 								);
 							}
