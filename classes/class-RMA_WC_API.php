@@ -29,48 +29,48 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 		}
 
 
-        /**
-         * Format log information
-         *
-         * @param array $log_information Array of log info.
-         * @return string Formatted log
-         */
-        public static function format_log_information( $log_information ) {
-            $output = '<table class="widefat">';
+		/**
+		 * Format log information
+		 *
+		 * @param array $log_information Array of log info.
+		 * @return string Formatted log
+		 */
+		public static function format_log_information( $log_information ) {
+			$output = '<table class="widefat">';
 
-            $table_header = true;
+			$table_header = true;
 
-            foreach ( $log_information as $result ) {
+			foreach ( $log_information as $result ) {
 
-                if ( $table_header ) {
-                    $output .= '<thead><tr>';
-                    foreach ( array_keys( ( $result ) ) as $key ) {
-                        $output .= '<th>' . $key . '</th>';
-                    }
-                    $output .= '</tr></thead>';
+				if ( $table_header ) {
+					$output .= '<thead><tr>';
+					foreach ( array_keys( ( $result ) ) as $key ) {
+						$output .= '<th>' . $key . '</th>';
+					}
+					$output .= '</tr></thead>';
 
-                    $table_header = false;
-                }
+					$table_header = false;
+				}
 
-                $output .= '<tr>';
-                foreach ( $result as $key => $value ) {
-                    $value = esc_xml( $value );
-                    $value = str_replace('error','<span style="color: red;">error</span>',$value);
-                    $value = str_replace('failed','<span style="color: red;">failed</span>',$value);
-                    $value = str_replace('success','<span style="color: green;">success</span>',$value);
-                    $value = str_replace('paid','<span style="color: green;">paid</span>',$value);
-                    $value = str_replace('created','<span style="color: green;">created</span>',$value);
-                    $value = str_replace('invoiced','<span style="color: green;">invoiced</span>',$value);
+				$output .= '<tr>';
+				foreach ( $result as $key => $value ) {
+					$value = esc_xml( $value );
+					$value = str_replace('error','<span style="color: red;">error</span>',$value);
+					$value = str_replace('failed','<span style="color: red;">failed</span>',$value);
+					$value = str_replace('success','<span style="color: green;">success</span>',$value);
+					$value = str_replace('paid','<span style="color: green;">paid</span>',$value);
+					$value = str_replace('created','<span style="color: green;">created</span>',$value);
+					$value = str_replace('invoiced','<span style="color: green;">invoiced</span>',$value);
 
-                    $output .= '<td>' . $value . '</td>';
-                }
-                $output .= '</tr>';
-            }
+					$output .= '<td>' . $value . '</td>';
+				}
+				$output .= '</tr>';
+			}
 
-            $output .= '</table>';
+			$output .= '</table>';
 
-            return $output;
-        }
+			return $output;
+		}
 
 		const http_args = array(
 			'timeout' => 120,
@@ -970,39 +970,39 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 
 				foreach ( $period as $date ) {
 					$from = $date->format( 'Y-m-d' );
-					$to = $date->modify('last day of')->format('Y-m-d');
+					$to   = $date->modify( 'last day of' )->format( 'Y-m-d' );
 
 					$customer_invoices = $this->get_customer_invoices( null, $from, $to );
-					foreach ($customer_invoices['invoice'] as $invoice) {
+					foreach ( $customer_invoices['invoice'] as $invoice ) {
 
-						if (!isset($invoice['parts'])) {
+						if ( ! isset( $invoice['parts'] ) ) {
 							continue;
 						}
 
-						foreach ($invoice['parts'] as $parts) {
+						foreach ( $invoice['parts'] as $parts ) {
 
 							// The xml parser cannot know if a single element should be an array.
-							if (array_key_exists(0, $parts)) {
+							if ( array_key_exists( 0, $parts ) ) {
 								$parts_array = $parts;
 							} else {
-								$parts_array = array($parts);
+								$parts_array = array( $parts );
 							}
 
-							foreach ($parts_array as $part) {
+							foreach ( $parts_array as $part ) {
 
-								if (!isset($part['sellprice']) || 0 === absint($part['sellprice'])) {
+								if ( ! isset( $part['sellprice'] ) || 0 === absint( $part['sellprice'] ) ) {
 									continue;
 								}
 
 								// If the project number is not set we are not interested in this transaction.
-								if (!isset($part['projectnumber'])) {
+								if ( ! isset( $part['projectnumber'] ) ) {
 									continue;
 								}
 
 								$bookings[] = array(
 									'type'          => 'receivable',
 									'accountnumber' => $part['income_accno'],
-									'accountname'   => $chart_lookup[$part['income_accno']],
+									'accountname'   => $chart_lookup[ $part['income_accno'] ],
 									'projectnumber' => $part['projectnumber'],
 									'date'          => $invoice['transdate'],
 									'description'   => $part['description'],
@@ -1014,47 +1014,45 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 				}
 
 				$vendor_invoices = $this->get_vendor_invoices();
-					foreach ( $vendor_invoices['payable'] as $payable ) {
+				foreach ( $vendor_invoices['payable'] as $payable ) {
 
-						foreach ( $payable['expenseentries'] as $parts ) {
+					foreach ( $payable['expenseentries'] as $parts ) {
 
-							// The xml parser cannot know if a single element should be an array.
-							if ( array_key_exists( 0, $parts ) ) {
-								$parts_array = $parts;
+						// The xml parser cannot know if a single element should be an array.
+						if ( array_key_exists( 0, $parts ) ) {
+							$parts_array = $parts;
+						} else {
+							$parts_array = array( $parts );
+						}
+
+						foreach ( $parts_array as $part ) {
+
+							if ( 0 === absint( $part['amount'] ) ) {
+								continue;
+							}
+
+							// If the project number is not set we are not interested in this transaction.
+							if ( ! isset( $part['projectNumber'] ) ) {
+								continue;
+							}
+
+							if ( in_array( $part['expense_accno'], $anonymizing_accounts, true ) ) {
+								$description_text = $chart_lookup[ $part['expense_accno'] ];
 							} else {
-								$parts_array = array( $parts );
+								$description_text = wp_strip_all_tags( html_entity_decode( $payable['description'] ) );
 							}
 
-							foreach ( $parts_array as $part ) {
-
-								if ( 0 === absint( $part['amount'] ) ) {
-									continue;
-								}
-
-								// If the project number is not set we are not interested in this transaction.
-								if ( ! isset( $part['projectNumber'] ) ) {
-									continue;
-								}
-
-
-								if ( in_array( $part['expense_accno'], $anonymizing_accounts, true ) ) {
-									$description_text = $chart_lookup[ $part['expense_accno'] ];
-								} else {
-									$description_text = wp_strip_all_tags( html_entity_decode( $payable['description'] ) );
-								}
-
-
-								$bookings[] = array(
-									'type'          => 'payable',
-									'accountnumber' => $part['expense_accno'],
-									'accountname'   => $chart_lookup[$part['expense_accno']],
-									'projectnumber' => $part['projectNumber'],
-									'date'          => $payable['transdate'],
+							$bookings[] = array(
+								'type'          => 'payable',
+								'accountnumber' => $part['expense_accno'],
+								'accountname'   => $chart_lookup[ $part['expense_accno'] ],
+								'projectnumber' => $part['projectNumber'],
+								'date'          => $payable['transdate'],
 								'description'   => $description_text,
-									'value'         => $part['amount'],
-								);
-							}
-						}			
+								'value'         => $part['amount'],
+							);
+						}
+					}
 				}
 
 				usort(
@@ -1651,7 +1649,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 			if ( ( 'error' == LOGLEVEL && 'error' == $status ) || 'complete' == LOGLEVEL ) {
 
 				// send email on error
-                if ( 'error' == $status && SENDLOGEMAIL ) (new RMA_WC_API)->send_log_email($log_values);
+				if ( 'error' == $status && SENDLOGEMAIL ) (new RMA_WC_API)->send_log_email($log_values);
 
 			}
 
@@ -1871,20 +1869,20 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 
 			$table_name = $wpdb->prefix . RMA_WC_LOG_TABLE;
 
-    		$log_object = array(
-    			'time'       => current_time( 'mysql' ),
-    			'status'     => $values['status'],
-    			'section_id' => $values['section_id'],
-    			'section'    => $values['section'],
-    			'mode'       => $values['mode'],
-    			'message'    => $values['message'],
-    		);
+			$log_object = array(
+				'time'       => current_time( 'mysql' ),
+				'status'     => $values['status'],
+				'section_id' => $values['section_id'],
+				'section'    => $values['section'],
+				'mode'       => $values['mode'],
+				'message'    => $values['message'],
+			);
 
-            self::$temporary_log[] = $log_object;
+			self::$temporary_log[] = $log_object;
 
 			$wpdb->insert(
 				$table_name,
-                $log_object,
+				$log_object,
 			);
 
 			// send email on error
