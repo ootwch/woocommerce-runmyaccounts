@@ -210,19 +210,19 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
             $id = 'rma-live-client';
             if ( defined( 'RMA_MANDANT_LIVE' ) ) {
-            add_settings_field(
-                $id,
-                    esc_html__( 'Production Client', 'rma-wc' ),
-                    array( $this, 'plain_text_cb' ), // general call back for input text
-                $this->option_page_general,
-                $section,
-                array(
-                    'option_group' => $this->option_group_general,
-                    'id'           => $id,
-                        'value'        => isset( $this->options_general[ $id ] ) ? $this->options_general[ $id ] : '',
+                add_settings_field(
+                    $id,
+                        esc_html__( 'Production Client', 'rma-wc' ),
+                        array( $this, 'option_secret_cb' ), // general call back for input text
+                    $this->option_page_general,
+                    $section,
+                    array(
+                        'option_group' => $this->option_group_general,
+                        'id'           => $id,
+                        'value'        => RMA_MANDANT_LIVE,
                         'description'  => esc_attr__( 'Configured in WP-CONFIG', 'rma-wc' ),
-                )
-            );
+                    )
+                );
             } else {
                 add_settings_field(
                     $id,
@@ -240,16 +240,16 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
             $id = 'rma-live-apikey';
             if ( defined( 'RMA_APIKEY_LIVE' ) ) {
-            add_settings_field(
-                $id,
-                    esc_html__( 'Production API key', 'rma-wc' ),
-                    array( $this, 'option_secret_cb' ),
-                $this->option_page_general,
-                $section,
-                array(
-                    'option_group' => $this->option_group_general,
-                    'id'           => $id,
-                        'value'        => isset( $this->options_general[ $id ] ) ? $this->options_general[ $id ] : '',
+                add_settings_field(
+                    $id,
+                        esc_html__( 'Production API key', 'rma-wc' ),
+                        array( $this, 'option_secret_cb' ),
+                    $this->option_page_general,
+                    $section,
+                    array(
+                        'option_group' => $this->option_group_general,
+                        'id'           => $id,
+                        'value'        => RMA_APIKEY_LIVE,
                         'description'  => esc_attr__( 'Configured in WP-CONFIG', 'rma-wc' ),
                 )
             );
@@ -271,15 +271,15 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
             $id = 'rma-test-client';
             // Defined in WP-CONFIG?
             if ( defined( 'RMA_MANDANT_TEST' ) ) {
-            add_settings_field(
-                $id,
-                    esc_html__( 'Sandbox Client', 'rma-wc' ),
-                    array( $this, 'option_secret_cb' ), // general call back for input text
-                $this->option_page_general,
-                $section,
-                array(
-                    'option_group' => $this->option_group_general,
-                    'id'           => $id,
+                add_settings_field(
+                    $id,
+                        esc_html__( 'Sandbox Client', 'rma-wc' ),
+                        array( $this, 'option_secret_cb' ), // general call back for input text
+                    $this->option_page_general,
+                    $section,
+                    array(
+                        'option_group' => $this->option_group_general,
+                        'id'           => $id,
                         'value'        => RMA_MANDANT_TEST,
                         'description'  => esc_attr__( 'Configured in WP-CONFIG', 'rma-wc' ),
                 )
@@ -301,15 +301,15 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
             $id = 'rma-test-apikey';
             if ( defined( 'RMA_APIKEY_TEST' ) ) {
-            add_settings_field(
-                $id,
-                    esc_html__( 'Sandbox API key', 'rma-wc' ),
-                    array( $this, 'option_secret_cb' ),
-                $this->option_page_general,
-                $section,
-                array(
-                    'option_group' => $this->option_group_general,
-                    'id'           => $id,
+                add_settings_field(
+                    $id,
+                        esc_html__( 'Sandbox API key', 'rma-wc' ),
+                        array( $this, 'option_secret_cb' ),
+                    $this->option_page_general,
+                    $section,
+                    array(
+                        'option_group' => $this->option_group_general,
+                        'id'           => $id,
                         'value'        => RMA_APIKEY_TEST,
                         'description'  => esc_attr__( 'Configured in WP-CONFIG', 'rma-wc' ),
                         )
