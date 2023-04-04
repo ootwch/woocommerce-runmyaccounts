@@ -378,6 +378,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 								$name                         = $customer['name'];
 								$customers[ $number ]['name'] = $customer['name'];
 							}
+							$customers[ $number ]['rmaid']          = $customer['id'] ?? '';
 							$customers[ $number ]['customernumber'] = $customer['customernumber'] ?? '';
 							$customers[ $number ]['display_name']   = $name . ' ( ' . $number . ' )';
 							$customers[ $number ]['email']          = empty( $customer['email'] ?? '' ) ? '' : $customer['email'];
