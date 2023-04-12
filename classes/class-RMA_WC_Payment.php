@@ -135,7 +135,7 @@ class RMA_WC_Payment {
                 'mode' => (new RMA_WC_API)->rma_mode(),
                 'message' => $message );
 
-            (new RMA_WC_API)->write_log($log_values);
+            RMA_WC_API::write_log($log_values);
 
         }
 

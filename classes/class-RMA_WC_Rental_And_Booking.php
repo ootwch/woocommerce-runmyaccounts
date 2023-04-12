@@ -136,7 +136,7 @@ class RMA_WC_Rental_And_Booking {
 				'message'    => 'Product ' . $item_product->get_name() . ' does not have a valid SKU.',
 			);
 
-			( new RMA_WC_API() )->write_log( $log_values );
+			RMA_WC_API::write_log( $log_values );
 		}
 
 		// get values.

@@ -1378,7 +1378,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 							'message'    => __( 'Could not create RMA customer dedicated guest account', 'rma-wc' ),
 						);
 
-						( new RMA_WC_API() )->write_log( $log_values );
+						self::write_log( $log_values );
 
 					}
 				} else {
@@ -1510,7 +1510,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 					'message'    => __( 'Could not add shipping costs to invoice because of missing shipping costs product sku', 'rma-wc' ),
 				);
 
-				( new RMA_WC_API() )->write_log( $log_values );
+				self::write_log( $log_values );
 
 			}
 
@@ -1636,8 +1636,8 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 						'mode'       => self::rma_mode(),
 						'message'    => $message,
 					);
-	
-					( new RMA_WC_API() )->write_log( $log_values );
+
+					self::write_log( $log_values );
 
 					unset( $order );
 
@@ -1650,7 +1650,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 			if ( ( 'error' == LOGLEVEL && 'error' == $status ) || 'complete' == LOGLEVEL ) {
 
 				// send email on error
-				if ( 'error' == $status && SENDLOGEMAIL ) (new RMA_WC_API)->send_log_email($log_values);
+				if ( 'error' == $status && SENDLOGEMAIL ) self::send_log_email($log_values);
 
 			}
 
@@ -1865,7 +1865,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 		 *
 		 * @return bool
 		 */
-		public function write_log( &$values ): bool {
+		public static function write_log( &$values ): bool {
 			global $wpdb;
 
 			$table_name = $wpdb->prefix . RMA_WC_LOG_TABLE;
@@ -1888,7 +1888,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 
 			// send email on error
 			if ( 'error' == $values['status'] && SENDLOGEMAIL ) {
-				$this->send_log_email( $values );
+				self::send_log_email( $values );
 			}
 
 			return true;
@@ -1901,7 +1901,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 		 *
 		 * @return bool
 		 */
-		public function send_log_email( &$values ): bool {
+		public static function send_log_email( &$values ): bool {
 
 			ob_start();
 			include plugin_dir_path( __FILE__ ) . '../templates/email/error-email-template.php';
