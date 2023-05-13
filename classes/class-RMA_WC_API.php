@@ -383,6 +383,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 							$customers[ $number ]['display_name']   = $name . ' ( ' . $number . ' )';
 							$customers[ $number ]['email']          = empty( $customer['email'] ?? '' ) ? '' : $customer['email'];
 							$customers[ $number ]['phone']          = empty( $customer['phone'] ?? '' ) ? '' : $customer['phone'];
+							$customers[ $number ]['mobile']         = empty( $customer['mobile'] ?? '' ) ? '' : $customer['mobile'];
 							$customers[ $number ]['firstname']      = empty( $customer['firstname'] ?? '' ) ? '' : $customer['firstname'];
 							$customers[ $number ]['lastname']       = empty( $customer['lastname'] ?? '' ) ? '' : $customer['lastname'];
 
