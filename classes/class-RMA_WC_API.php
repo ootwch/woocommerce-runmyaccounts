@@ -1209,6 +1209,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 					'taxincluded'    => $order_details['taxincluded'],
 					'dcn'            => '',
 					'customernumber' => $order_details['customernumber'],
+					'paymentmethod'  => $order_details['paymentmethod'],
 					'payment_accno'  => $order_details['payment_accno'],
 				),
 				'part'    => array(),
@@ -1401,6 +1402,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 			$order_details['orderdate']      = wc_format_datetime( $order->get_date_created(), 'd.m.Y' );
 			$order_details['taxincluded']    = $order->get_prices_include_tax() ? 'true' : 'false';
 			$order_details['customernumber'] = $rma_customer_id;
+			$order_details['paymentmethod']  = $order_payment_method;
 			$order_details['ar_accno']       = isset( $option_accounting[ $order_payment_method ] ) && ! empty( $option_accounting[ $order_payment_method ] ) ? $option_accounting[ $order_payment_method ] : '';
 			$order_details['payment_accno']  = isset( $option_accounting[ $order_payment_method . '_payment_account' ] ) && ! empty( $option_accounting[ $order_payment_method . '_payment_account' ] ) ? $option_accounting[ $order_payment_method . '_payment_account' ] : '';
 
@@ -1445,11 +1447,13 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 				// make sure the product is still available in WooCommerce
 				if ( is_object( $product ) ) {
 					$order_details_products[] = array(
-						'name'     => $item->get_name(),
-						'quantity' => $item->get_quantity(),
-						'price'    => wc_format_decimal( $product->get_price(), 2 ),
-						'item_id'  => $item_id,
-						'sku'      => $product->get_sku() ?? '',
+						'name'       => $item->get_name(),
+						'quantity'   => $item->get_quantity(),
+						'price'      => wc_format_decimal( $product->get_price(), 2 ),
+						'item_id'    => $item_id,
+						'product_id' => $product->get_id(),
+						'sku'        => $product->get_sku() ?? '',
+
 					);
 
 				}

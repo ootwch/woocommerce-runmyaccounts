@@ -579,6 +579,13 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 	public function column_col_invoice_id( $item ) {
 
+		$payment_method = $item['data']['invoice']['paymentmethod'];
+		if ( empty( $payment_method ) ) {
+			$payment_method = '<no payment method>';
+		}
+		echo esc_html( stripslashes( $payment_method ) );
+		echo '<br>';
+
 		$invoice_id = $item['data']['invoice']['invnumber'];
 		$nonce      = wp_create_nonce( 'create_single_invoice_' . $invoice_id );
 		echo esc_html( stripslashes( $invoice_id ) );
