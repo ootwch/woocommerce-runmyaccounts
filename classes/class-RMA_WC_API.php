@@ -1639,7 +1639,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 						'section_id' => $order_id,
 						'section'    => esc_html_x( 'Invoice', 'Log Section', 'rma-wc' ),
 						'mode'       => self::rma_mode(),
-						'message'    => $message,
+						'message'    => $message . PHP_EOL . $xml_str,
 					);
 
 					self::write_log( $log_values );
