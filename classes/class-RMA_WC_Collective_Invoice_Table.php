@@ -193,21 +193,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
             jQuery('input[name=\"invoice_id[]\"').trigger( \"change\", {'state': event.currentTarget.checked }); 
         });
 
-        // Bulk set checkboxes on orders
-        jQuery('input[name=\"invoice_id[]\"').change( function(event, data) {
-            if (event.target !== this) return;
-            current_invoice_id = event.currentTarget.dataset.invoice_id;
-            if (typeof data?.state !== 'undefined') {
-                current_state = data.state ;
-            } else {
-                current_state = event.currentTarget.checked;
-            }
-            // current_order_cbs = jQuery('input[data-invoice_id=\"' + current_invoice_id + '\"]');
-            current_order_cbs = jQuery(this).closest('tr').next().find('input[name=\"order_id[]\"');
-            current_order_cbs.prop(\"checked\", current_state).change();
-
-        });
-
         // Update selected amount on invoices
         jQuery('input[name=\"order_id[]\"').change(
             debounce(function(event, data) {
@@ -328,7 +313,19 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			$invoice_description_en = isset( $_POST['invoice-description-en'] ) ? sanitize_text_field( wp_unslash( $_POST['invoice-description-en'] ) ) : '';
 			$invoice_footer_en      = isset( $_POST['invoice-footer-en'] ) ? sanitize_text_field( wp_unslash( $_POST['invoice-footer-en'] ) ) : '';
 
+			$textarea_value = empty( $_POST['user-list-filter'] ) ? '' : sanitize_text_field( wp_unslash( $_POST['user-list-filter'] ) ); // phpcs:ignore
 			?>
+
+			<div id="user-list-text-area">
+				<label for="user-list-filter" style="display:block" >Filter user list by GBID: Enter list of GBID and click [Apply Filter]</label>
+				<textarea id="user-list-filter" name="user-list-filter" rows="2" style="display:block; width:100%" placeholder="Paste a list of customer id's ('N12345,SCK789,T231')."><?php echo esc_attr( $textarea_value ); ?></textarea>
+				<?php submit_button( 'Apply Filter', '', '', false, array( 'id' => 'search-submit' ) ); ?>
+			</div>
+
+
+
+
+
 
 			<nav class="nav-tab-wrapper">
 				<a href="#" data-language="en" class="nav-tab nav-tab-en nav-tab-active">English</a>
@@ -461,6 +458,24 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		$display_data    = $t->create_collective_invoice( true, true );
 		$this->all_items = $display_data;
 		// $display_data = $t->get_not_invoiced_orders();
+
+		// Filter by key list.
+		$user_list_filter_string = trim( sanitize_text_field( wp_unslash( $_POST['user-list-filter'] ?? '' ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$user_list_filter_string = str_replace( ' ', ',', $user_list_filter_string );
+		$user_list_filter_string = str_replace( ',,', ',', $user_list_filter_string );
+
+		$user_list_filter = empty( $user_list_filter_string ) ? array() : explode( ',', $user_list_filter_string );
+
+		$filtered_items = array();
+		if ( ! empty( $user_list_filter ) ) {
+			foreach ( $display_data as $key => $item ) {
+				$customernumber = $item['data']['invoice']['customernumber'];
+				if ( in_array( $customernumber, $user_list_filter, true ) ) {
+					$filtered_items[ $key ] = $item;
+				}
+			}
+			$display_data = $filtered_items;
+		}
 
 		// Only show selected invoiced
 		$invoice_ids = ! empty( $_POST['invoice_id'] ) ? array_map( 'esc_attr', array_map( 'sanitize_text_field', wp_unslash( $_POST['invoice_id'] ) ) ) : array();
