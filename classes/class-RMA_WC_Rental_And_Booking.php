@@ -17,7 +17,6 @@ class RMA_WC_Rental_And_Booking {
 	public function __construct() {
 
 		self::init();
-
 	}
 
 	/**
@@ -34,7 +33,6 @@ class RMA_WC_Rental_And_Booking {
 		add_filter( 'woocommerce_product_data_tabs', array( $this, 'woocommerce_product_data_tabs' ) );
 
 		add_filter( 'rma_invoice_part', array( $this, 'modify_rma_invoice_part' ), 15, 2 );
-
 	}
 
 	/**
@@ -53,7 +51,6 @@ class RMA_WC_Rental_And_Booking {
 		$tabs['inventory']['class'][] = 'show_if_redq_rental';
 
 		return $tabs;
-
 	}
 
 	/**
@@ -153,8 +150,19 @@ class RMA_WC_Rental_And_Booking {
 		$part['description'] = '';
 
 		if ( $is_cancelation_order ) {
-			$part['description']  = '#' . $order_id . ': ' . esc_html__( 'Cancelation of original order', 'woocommerce-sailcom' ) . ' #' . $canceled_order_id . self::XML_NL;
-			$part['description'] .= $part_title;
+
+
+			$part['description'] = esc_html(
+				sprintf(
+					/* translators: Newline: '&#xA;', %1$s: order_id, %2$s: origininal order id, %3$s: product (boat) name, %4$s: cancelation time */
+					__( '#%1$s: Cancellation of reservation #%2$s of %3$s. Cancellation time: %4$s.', 'woocommerce-sailcom' ),
+					$order_id,
+					$canceled_order_id,
+					$part_title,
+					$confirmed_datetime_formatted,
+				),
+			);
+
 
 		} else {
 
@@ -163,11 +171,24 @@ class RMA_WC_Rental_And_Booking {
 			$dropoff_time               = new \DateTime( $rnb_order_meta['dropoff_date'] . ' ' . $rnb_order_meta['dropoff_time'], wp_timezone() );
 			$dropoff_datetime_formatted = wp_date( $datetime_format, $dropoff_time->format( 'U' ) );
 
-			$part['description']  = '#' . $order_id . ': ' . esc_html__( 'Reservation', 'woocommerce-sailcom' ) . self::XML_NL;
-			$part['description'] .= $part_title . self::XML_NL . $pickup_datetime_formatted . ' - ' . $dropoff_datetime_formatted;
+			// Use self::XML_NL for newlines.
+
+			$part['description'] = esc_html(
+				sprintf(
+					/* translators: %1$s: order_id, %2$s: product (boat) name, %3$s: reservation start datetime %4$s: reservation end datetime */
+					__( '#%1$s: Booking of %2$s, %3$s until %4$s', 'woocommerce-sailcom' ),
+					$order_id,
+					$part_title,
+					$pickup_datetime_formatted,
+					$dropoff_datetime_formatted
+				),
+			);
+
+			// $part['description']  = '#' . $order_id . ': ' . esc_html__( 'Booking of ', 'woocommerce-sailcom' ) . self::XML_NL;
+			// $part['description'] .= $part_title . self::XML_NL . $pickup_datetime_formatted . ' - ' . $dropoff_datetime_formatted;
 		}
 
-		$part['description'] .= self::XML_NL . '(' . $confirmed_datetime_formatted . '/' . $order->get_customer_ip_address() . ')';
+		// $part['description'] .= self::XML_NL . '(' . $confirmed_datetime_formatted . '/' . $order->get_customer_ip_address() . ')';
 
 		// set line total price.
 		$total = $item->get_total(); // Gives total of line item, which is the sustainable variant.
@@ -193,7 +214,6 @@ class RMA_WC_Rental_And_Booking {
 		}
 
 		return $part;
-
 	}
 
 }
