@@ -3,7 +3,7 @@
  * Invoice Table Class
  */
 
- // Our class extends the WP_List_Table class, so we need to make sure that it's there.
+// Our class extends the WP_List_Table class, so we need to make sure that it's there.
 if ( ! class_exists( 'WP_List_Table' ) ) {
 	require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
 }
@@ -52,7 +52,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 		// Register the javascript.
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_admin_js' ), 999 );
-
 	}
 
 		/**
@@ -121,9 +120,9 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 					wp_die( 'Current user does not have the permission to create invoices.' );
 				}
 
-				$invoice_title_en       = isset( $_POST['invoice-title-en'] ) ? sanitize_text_field( wp_unslash( $_POST['invoice-title-en'] ) ) : 'SailCom Abrechnung';
-				$invoice_description_en = isset( $_POST['invoice-description-en'] ) ? sanitize_textarea_field( wp_unslash( $_POST['invoice-description-en'] ) ) : '';
-				$invoice_footer_en      = isset( $_POST['invoice-footer-en'] ) ? sanitize_textarea_field( wp_unslash( $_POST['invoice-footer-en'] ) ) : '';
+				$invoice_title_en       = get_option( 'rma_invoice_title_en', __( 'SailCom Abrechnung', 'woocommerce-sailcom' ) );
+				$invoice_description_en = get_option( 'rma_invoice_description_en', '' );
+				$invoice_footer_en      = get_option( 'rma_invoice_footer_en', '' );
 
 				$created_invoices = array();
 
@@ -309,11 +308,11 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 			$readonly = 'plan' === $this->execution_mode ? '' : 'readonly';
 
-			$invoice_title_en       = isset( $_POST['invoice-title-en'] ) ? sanitize_text_field( wp_unslash( $_POST['invoice-title-en'] ) ) : 'SailCom Abrechnung';
-			$invoice_description_en = isset( $_POST['invoice-description-en'] ) ? sanitize_text_field( wp_unslash( $_POST['invoice-description-en'] ) ) : '';
-			$invoice_footer_en      = isset( $_POST['invoice-footer-en'] ) ? sanitize_text_field( wp_unslash( $_POST['invoice-footer-en'] ) ) : '';
+			$invoice_title_en       = get_option( 'rma_invoice_title_en', __( 'SailCom Abrechnung', 'woocommerce-sailcom' ) );
+			$invoice_description_en = get_option( 'rma_invoice_description_en', '' );
+			$invoice_footer_en      = get_option( 'rma_invoice_footer_en', '' );
 
-			$textarea_value = empty( $_POST['user-list-filter'] ) ? '' : sanitize_text_field( wp_unslash( $_POST['user-list-filter'] ) ); // phpcs:ignore
+			$textarea_value = get_option( 'rma-invoice-user-list-filter', '' );
 			?>
 
 			<div id="user-list-text-area">
@@ -338,38 +337,38 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			<div class="nav-tab-en">
 
 			<label>EN Title</label><br>
-			<input <?php echo esc_attr( $readonly ); ?> type="text" name = "invoice-title-en" value="<?php echo esc_attr( $invoice_title_en ); ?>"><br>
+			<input <?php echo esc_attr( $readonly ); ?> type="text" name = "invoice_title_en" value="<?php echo esc_attr( $invoice_title_en ); ?>"><br>
 
 			<label>EN Header Text</label><br>
-			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice-description-en" cols="80" rows="3"><?php echo esc_attr( $invoice_description_en ); ?></textarea><br>
+			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice_description_en" cols="80" rows="3"><?php echo esc_attr( $invoice_description_en ); ?></textarea><br>
 
 			<label>EN Footer Text</label><br>
-			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice-footer-en" cols="80" rows="10"><?php echo esc_attr( $invoice_footer_en ); ?></textarea><br>
+			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice_footer_en" cols="80" rows="10"><?php echo esc_attr( $invoice_footer_en ); ?></textarea><br>
 			</div>
 
 			<div hidden class="nav-tab-de">
 
 			<label>DE Title</label><br>
-			<input <?php echo esc_attr( $readonly ); ?> type="text" name = "invoice-title-de"><br>
+			<input <?php echo esc_attr( $readonly ); ?> type="text" name = "invoice_title_de"><br>
 
 			<label>DE Header Text</label><br>
-			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice-description-de" cols="80" rows="3"></textarea><br>
+			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice_description_de" cols="80" rows="3"></textarea><br>
 
 			<label>DE Footer Text</label><br>
-			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice-footer-de" cols="80" rows="10"></textarea><br>
+			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice_footer_de" cols="80" rows="10"></textarea><br>
 
 			</div>
 
 			<div hidden class="nav-tab-fr">
 
 			<label>FR Title</label><br>
-			<input <?php echo esc_attr( $readonly ); ?> type="text" name = "invoice-title-fr"><br>
+			<input <?php echo esc_attr( $readonly ); ?> type="text" name = "invoice_title_fr"><br>
 
 			<label>FR Header Text</label><br>
-			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice-description-fr" cols="80" rows="3"></textarea><br>
+			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice_description_fr" cols="80" rows="3"></textarea><br>
 
 			<label>FR Footer Text</label><br>
-			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice-footer-fr" cols="80" rows="10"></textarea><br>
+			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice_footer_fr" cols="80" rows="10"></textarea><br>
 
 			</div>
 
@@ -432,7 +431,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 	public function column_default( $item, $column_name ) {
 
-			  return $item[ $column_name ];
+				return $item[ $column_name ];
 	}
 
 	/**
@@ -453,6 +452,16 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 	 * Prepare the table with different parameters, pagination, columns and table elements
 	 */
 	public function prepare_items() {
+
+		$rma_options = array( 'invoice_title_en', 'invoice_description_en', 'invoice_footer_en' );
+		foreach ( $rma_options as $o ) {
+			if ( isset( $_POST[$o] ) ) {
+				$$o = sanitize_text_field( wp_unslash( $_POST[$o] ) );
+				update_option( 'rma_' . $o, $$o );
+			} else {
+				$$o = get_option( 'rma_' . $o, '' );
+			}
+		}
 
 		$t               = new RMA_WC_Collective_Invoicing();
 		$display_data    = $t->create_collective_invoice( true, true );
@@ -639,7 +648,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 				sprintf( esc_attr__( 'Customer %s does not seem to exist! ', 'wc-rma' ), esc_attr( $item['user_id'] ?? '<item missing>' ) )
 			);
 		}
-
 	}
 
 	public function column_col_due_date( $item ) {
@@ -654,7 +662,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		}
 
 		echo '<div class="invoice_price_total">' . wp_kses_post( wc_price( $total_amount ) ) . '</div>' . PHP_EOL;
-
 	}
 
 	/**
@@ -669,7 +676,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 		if ( 'plan' === $this->execution_mode ) {
 			printf(
-				'<input type="checkbox" data-invoice_id="%1$s" name="invoice_id[]" value="%1$s" checked />',
+				'<input type="checkbox" data-invoice_id="%1$s" name="invoice_id[]" value="%1$s" />',
 				esc_attr( $invoice_id )
 			);
 		} else {
@@ -685,7 +692,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		}
 
 		printf( '<div><a href="#" class="expand-order-details-toggle" invoice-id="%s">Expand</a></div>', esc_attr( $invoice_id ) );
-
 	}
 
 	/**
@@ -736,9 +742,9 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			$order_rows .= '<td>';
 			$order_rows .= sprintf(
 				'<label class="screen-reader-text" for="invoice_' . $invoice_id . '">' . sprintf( __( 'Select %s' ), $invoice_id ) . '</label>'
-				 . '<input type="checkbox" data-invoice_id=' . $invoice_id
-				 . ( ( 'plan' === $this->execution_mode ) ? '' : ' disabled ' )
-				 . ' name="order_id[]" data-order_id=' . $part['order_id'] . ' value="' . $part['order_id'] . '" checked />'
+				. '<input type="checkbox" data-invoice_id=' . $invoice_id
+				. ( ( 'plan' === $this->execution_mode ) ? '' : ' disabled ' )
+				. ' name="order_id[]" data-order_id=' . $part['order_id'] . ' value="' . $part['order_id'] . '" checked />'
 			);
 			$order_rows .= '</td>' . PHP_EOL;
 			*/
@@ -770,7 +776,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 		echo '</td>' . PHP_EOL;
 		echo '</tr>' . PHP_EOL;
-
 	}
 }
 
