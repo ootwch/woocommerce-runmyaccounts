@@ -311,7 +311,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			}
 			// Get the active tab from the $_GET param
 			$default_tab = null;
-			$tab         = isset( $_GET['tab'] ) ? $_GET['tab'] : $default_tab;
+			$tab         = isset( $_REQUEST['tab'] ) ? $_GET['_REQUEST'] : $default_tab;
 
 			$readonly = 'plan' === $this->execution_mode ? '' : 'readonly';
 
@@ -319,20 +319,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			$invoice_description_en = get_option( 'rma_invoice_description_en', '' );
 			$invoice_footer_en      = get_option( 'rma_invoice_footer_en', '' );
 
-			$textarea_value = get_option( 'rma-invoice-user-list-filter', '' );
 			?>
-
-			<div id="user-list-text-area">
-				<label for="user-list-filter" style="display:block" >Filter user list by GBID: Enter list of GBID and click [Apply Filter]</label>
-				<textarea id="user-list-filter" name="user-list-filter" rows="2" style="display:block; width:100%" placeholder="Paste a list of customer id's ('N12345,SCK789,T231')."><?php echo esc_attr( $textarea_value ); ?></textarea>
-				<?php submit_button( 'Apply Filter', '', '', false, array( 'id' => 'search-submit' ) ); ?>
-			</div>
-
-
-
-
-
-
 			<nav class="nav-tab-wrapper">
 				<a href="#" data-language="en" class="nav-tab nav-tab-en nav-tab-active">English</a>
 				<a href="#" data-language="de" class="nav-tab nav-tab-de">Deutsch</a>
@@ -385,8 +372,54 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 			<?php
 
+			$textarea_value = get_option( 'rma-invoice-user-list-filter', '' );
+			?>
+
+			<div id="user-list-text-area">
+				<label for="user-list-filter" style="display:block" >Filter user list by GBID: Enter list of GBID and click [Apply Filter]</label>
+				<textarea id="user-list-filter" name="user-list-filter" rows="2" style="display:block; width:100%" placeholder="Paste a list of customer id's ('N12345,SCK789,T231')."><?php echo esc_attr( $textarea_value ); ?></textarea>
+				<?php submit_button( 'Apply Filter', '', '', false, array( 'id' => 'search-submit' ) ); ?>
+			</div>
+			<?php
+
 			echo '<input type="hidden" name="page" value="' . esc_attr( $_REQUEST['page'] ) . '" />';
-			$this->search_box( 'Search Customer', 'customer-search' );
+
+			/**
+			 * Third party filter
+			 *
+			 */
+			/*
+				// $partner_id = $order->get_meta( 'third-party-invoice-partner' );
+				$partners   = (array) ( new SailCom\SailCom_Gateway_Third_Party() )->get_option( 'partners' );
+
+				$payment_method_filter = '' !== $_REQUEST['payment-method-filter'] ? sanitize_text_field( wp_unslash( $_REQUEST['payment-method-filter'] ) ) : '';
+				echo '<select style="width:50%;" class="select short payment-method-filter" name="payment-method-filter" data-allow_clear="true">';
+
+				$selected = '' === $payment_method_filter ? 'selected' : '';
+				echo '<option class="select short" value="" ' . esc_attr( $selected ) . '></option>';
+
+				foreach ( $partners as $key => $p ) {
+					$selected = ( (string) $key ) === $payment_method_filter ? 'selected' : '';
+					echo '<option class="select short" value="' . esc_attr( $key ) . '" ' . esc_attr( $selected ) . '>' . htmlspecialchars( wp_kses_post( $p['name'] ) ) . '</option>';
+
+				}
+				echo '</select>';
+			*/
+
+			/** Payment Method Filter */
+			$payment_method_filter = isset( $_REQUEST['payment-method-filter'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['payment-method-filter'] ) ) : '';
+			echo '<select style="width:50%;" class="select short payment-method-filter" name="payment-method-filter" data-allow_clear="true">';
+			$selected = '' === $payment_method_filter ? 'selected' : '';
+			echo '<option class="select short" value="" ' . esc_attr( $selected ) . '></option>';
+
+			foreach ( array( 'sailcom-invoice', 'sailcom-third-party', 'sailcom-cash2organizer', 'cod' ) as $method ) {
+				$selected = ( $method ) === $payment_method_filter ? 'selected' : '';
+				echo '<option class="select short" value="' . esc_attr( $method ) . '" ' . esc_attr( $selected ) . '>' . htmlspecialchars( wp_kses_post( $method ) ) . '</option>';
+
+			}
+			echo '</select>';
+
+			$this->search_box( 'Search', 'customer-search' );
 			$this->views();
 
 		}
@@ -406,7 +439,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 	protected function get_views() {
 
-		$view = ! empty( $_GET['view'] ) ? sanitize_text_field( wp_unslash( $_GET['view'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$view = ! empty( $_REQUEST['view'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['view'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 		$status_links = array(
 			'all'    => '<a class="' . ( 'all' === $view ? 'current' : '' ) . '" href="' . add_query_arg( 'view', 'all' ) . '">' . esc_html__( 'All', 'wc-rma' ) . '(' . count( $this->all_items ) . ')</a>',
@@ -501,8 +534,21 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			unset( $_REQUEST['paged'] );
 		}
 
+		// filter payment method.
+		$payment_method_filter = isset( $_REQUEST['payment-method-filter'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['payment-method-filter'] ) ) : '';
+		if ( '' !== $payment_method_filter ) {
+			$filtered_items = array();
+			foreach ( $display_data as $key => $item ) {
+				$payment_method = $item['data']['invoice']['paymentmethod'];
+				if ( $payment_method === $payment_method_filter ) {
+					$filtered_items[ $key ] = $item;
+				}
+			}
+			$display_data = $filtered_items;
+		}
+
 		// Filter data
-		$filter = ! empty( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : '';
+		$filter = ! empty( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '';
 		if ( ! empty( $filter ) ) {
 			$filtered_items = array();
 			foreach ( $display_data as $item ) {
@@ -536,7 +582,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		}
 
 		// If view=errors then only show those.
-		$view = ! empty( $_GET['view'] ) ? sanitize_text_field( wp_unslash( $_GET['view'] ) ) : '';
+		$view = ! empty( $_REQUEST['view'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['view'] ) ) : '';
 		switch ( $view ) {
 			case 'errors':
 				$display_data = $this->errors;
@@ -549,8 +595,8 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		* -- Ordering parameters --
 		*/
 		// Parameters that are going to be used to order the result.
-		$orderby = ! empty( $_GET['orderby'] ) ? sanitize_text_field( wp_unslash( $_GET['orderby'] ) ) : '';
-		$order   = ! empty( $_GET['order'] ) ? sanitize_text_field( wp_unslash( $_GET['order'] ) ) : 'ASC';
+		$orderby = ! empty( $_REQUEST['orderby'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['orderby'] ) ) : '';
+		$order   = ! empty( $_REQUEST['order'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['order'] ) ) : 'ASC';
 		if ( ! empty( $orderby ) & ! empty( $order ) ) {
 			$display_data = wp_list_sort( $display_data, $orderby, $order, false );
 
@@ -567,7 +613,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		$perpage = 500;
 
 		// Which page is this?
-		$paged = ! empty( $_GET['paged'] ) ? sanitize_text_field( wp_unslash( $_GET['paged'] ) ) : '';
+		$paged = ! empty( $_REQUEST['paged'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['paged'] ) ) : '';
 
 		// Page Number.
 		if ( empty( $paged ) || ! is_numeric( $paged ) || $paged <= 0 ) {
