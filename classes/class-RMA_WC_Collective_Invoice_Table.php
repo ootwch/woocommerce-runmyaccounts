@@ -411,6 +411,8 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			echo '<select style="width:50%;" class="select short payment-method-filter" name="payment-method-filter" data-allow_clear="true">';
 			$selected = '' === $payment_method_filter ? 'selected' : '';
 			echo '<option class="select short" value="" ' . esc_attr( $selected ) . '></option>';
+			$selected = 'no-payment-method' === $payment_method_filter ? 'selected' : '';
+			echo '<option class="select short" value="no-payment-method" ' . esc_attr( $selected ) . '>&lt;no payment method&gt;></option>';
 
 			foreach ( array( 'sailcom-invoice', 'sailcom-third-party', 'sailcom-cash2organizer', 'cod' ) as $method ) {
 				$selected = ( $method ) === $payment_method_filter ? 'selected' : '';
@@ -541,6 +543,8 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			foreach ( $display_data as $key => $item ) {
 				$payment_method = $item['data']['invoice']['paymentmethod'];
 				if ( $payment_method === $payment_method_filter ) {
+					$filtered_items[ $key ] = $item;
+				} elseif ( empty( $payment_method ) && 'no-payment-method' === $payment_method_filter ) {
 					$filtered_items[ $key ] = $item;
 				}
 			}
