@@ -606,49 +606,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 		}
 
-		/*
-		-- Pagination parameters --
-		*/
-
-		// Number of elements in your table?
-		$totalitems = count( $display_data );
-
-		// How many to display per page?
-		$perpage = 500;
-
-		// Which page is this?
-		$paged = ! empty( $_REQUEST['paged'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['paged'] ) ) : '';
-
-		// Page Number.
-		if ( empty( $paged ) || ! is_numeric( $paged ) || $paged <= 0 ) {
-			$paged = 1;
-		}
-		// How many pages do we have in total?
-		$totalpages = ceil( $totalitems / $perpage );
-
-		// adjust the query to take pagination into account.
-		if ( ! empty( $paged ) && ! empty( $perpage ) ) {
-			$offset = ( $paged - 1 ) * $perpage;
-
-			$display_data = array_slice( $display_data, $offset, $perpage, false );
-
-			/*
-			* -- Register the pagination --
-			*/
-			$this->set_pagination_args(
-				array(
-					'total_items' => $totalitems,
-					'total_pages' => $totalpages,
-					'per_page'    => $perpage,
-				)
-			);
-
-			// The pagination links are automatically built according to those parameters.
-
-			// $this->items = array();
-			$this->items = $display_data;
-
-		}
+		$this->items = $display_data;
 
 		$this->process_bulk_action();
 	}
