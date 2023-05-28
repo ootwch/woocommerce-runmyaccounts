@@ -1195,25 +1195,22 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 			}
 
 			$data = array(
-				'invoice' => apply_filters(
-					'rma_invoice_information',
-					array(
-						'invnumber'      => $invoice_id,
-						'ordnumber'      => $order_id,
-						'status'         => 'OPEN',
-						'currency'       => $order_details['currency'],
-						'ar_accno'       => $order_details['ar_accno'],
-						'transdate'      => date( DateTimeInterface::RFC3339, time() ),
-						'duedate'        => $order_details['duedate'], // date( DateTime::RFC3339, time() ),
-						'description'    => $description,
-						'notes'          => '',
-						'intnotes'       => $order_details['notes'],
-						'taxincluded'    => $order_details['taxincluded'],
-						'dcn'            => '',
-						'customernumber' => $order_details['customernumber'],
-						'paymentmethod'  => $order_details['paymentmethod'],
-						'payment_accno'  => $order_details['payment_accno'],
-					),
+				'invoice' => array(
+					'invnumber'      => $invoice_id,
+					'ordnumber'      => $order_id,
+					'status'         => 'OPEN',
+					'currency'       => $order_details['currency'],
+					'ar_accno'       => $order_details['ar_accno'],
+					'transdate'      => date( DateTimeInterface::RFC3339, time() ),
+					'duedate'        => $order_details['duedate'], // date( DateTime::RFC3339, time() ),
+					'description'    => $description,
+					'notes'          => '',
+					'intnotes'       => $order_details['notes'],
+					'taxincluded'    => $order_details['taxincluded'],
+					'dcn'            => '',
+					'customernumber' => $order_details['customernumber'],
+					'paymentmethod'  => $order_details['paymentmethod'],
+					'payment_accno'  => $order_details['payment_accno'],
 				),
 				'part'    => array(),
 			);
@@ -1247,8 +1244,10 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 
 			endif;
 
-			return $data;
-
+			return apply_filters(
+				'rma_invoice_information',
+				$data,
+			);
 		}
 
 		/**
