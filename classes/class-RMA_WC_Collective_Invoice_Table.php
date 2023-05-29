@@ -295,18 +295,9 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 		if ( 'top' === $which ) {
 			if ( 'confirm' === $this->execution_mode ) {
-				echo '<div id="selected-invoice-amount"><strong>Selected Invoice Amount</strong>' . esc_attr( count( $this->items ) ) . '</div>';
-				echo '<div id="selected-invoice-number"><strong>Selected Number of Invoices</strong></div>';
+				echo '<div id="selected-invoice-amount"><strong>Selected Number of Invoices</strong>' . esc_attr( count( $this->items ) ) . '</div>';
 			} else {
-				// The code that goes before the table is here.
-				echo '<div><strong>Tabs for the languages</strong></div>';
-				echo '<div><strong>Numbers of errors:</strong> ' . count( $this->errors ) . '</div>';
-				echo '<div><strong>Select/Filter by user, date, language</strong></div>';
-				echo "<div><strong>Hello, I'm before the table</strong></div>";
-				echo '<div><strong>Total Invoice Amount</strong></div>';
-				echo '<div><strong>Total Number of Invoices</strong></div>';
-				echo '<div id="selected-invoice-amount"><strong>Selected Invoice Amount</strong>d</div>';
-				echo '<div id="selected-invoice-number"><strong>Selected Number of Invoices</strong>d</div>';
+
 				// $this->show_action_form();
 			}
 			// Get the active tab from the $_GET param
@@ -506,7 +497,8 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		}
 
 		// Filter by key list.
-		$user_list_filter_string = trim( sanitize_text_field( wp_unslash( $_POST['user-list-filter'] ?? '' ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
+		$user_list_filter_string = get_option( 'rma-invoice-user-list-filter', '' );
+		$user_list_filter_string = trim( sanitize_text_field( wp_unslash( $_POST['user-list-filter'] ?? $user_list_filter_string ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 		$user_list_filter_string = str_replace( ' ', ',', $user_list_filter_string );
 		$user_list_filter_string = str_replace( ',,', ',', $user_list_filter_string );
 		update_option( 'rma-invoice-user-list-filter', $user_list_filter_string );
