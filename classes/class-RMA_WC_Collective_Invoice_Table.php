@@ -505,28 +505,35 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			}
 		}
 
-		$t               = new RMA_WC_Collective_Invoicing();
-		$display_data    = $t->create_collective_invoice( true, true );
-		$this->all_items = $display_data;
-		// $display_data = $t->get_not_invoiced_orders();
-
 		// Filter by key list.
 		$user_list_filter_string = trim( sanitize_text_field( wp_unslash( $_POST['user-list-filter'] ?? '' ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
 		$user_list_filter_string = str_replace( ' ', ',', $user_list_filter_string );
 		$user_list_filter_string = str_replace( ',,', ',', $user_list_filter_string );
-
+		update_option( 'rma-invoice-user-list-filter', $user_list_filter_string );
 		$user_list_filter = empty( $user_list_filter_string ) ? array() : explode( ',', $user_list_filter_string );
 
-		$filtered_items = array();
-		if ( ! empty( $user_list_filter ) ) {
-			foreach ( $display_data as $key => $item ) {
-				$customernumber = $item['data']['invoice']['customernumber'];
-				if ( in_array( $customernumber, $user_list_filter, true ) ) {
-					$filtered_items[ $key ] = $item;
-				}
-			}
-			$display_data = $filtered_items;
+		if ( empty( $user_list_filter ) ) {
+			$user_id_filter = array();
+		} else {
+			$customer_query = new \WP_User_Query(
+				array(
+					'fields'     => 'ID',
+					'meta_query' => array(
+						'relation' => 'AND',
+						array(
+							'key'     => 'rma_customer',
+							'compare' => 'IN',
+							'value'   => $user_list_filter,
+						),
+					),
+				)
+			);
+			$user_id_filter = $customer_query->get_results();
 		}
+
+		$t               = new RMA_WC_Collective_Invoicing();
+		$display_data    = $t->create_collective_invoice( true, true, false, $user_id_filter );
+		$this->all_items = $display_data;
 
 		// Only show selected invoiced
 		$invoice_ids = ! empty( $_POST['invoice_id'] ) ? array_map( 'esc_attr', array_map( 'sanitize_text_field', wp_unslash( $_POST['invoice_id'] ) ) ) : array();
