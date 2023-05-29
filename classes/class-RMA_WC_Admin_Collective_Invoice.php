@@ -114,7 +114,9 @@ class RMA_WC_Admin_Collective_Invoice {
 					<div id="nds-wp-list-table-demo">			
 						<div id="nds-post-body">		
 					<form id="invoice-dashboard-form" method="post">					
-				<?php $this->invoice_table->display(); ?>					
+				<?php
+				do_action( 'admin_table_notices' );
+				$this->invoice_table->display(); ?>					
 					</form>
 						</div>			
 					</div>
