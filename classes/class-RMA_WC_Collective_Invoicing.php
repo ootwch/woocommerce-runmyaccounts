@@ -336,14 +336,8 @@ class RMA_WC_Collective_Invoicing {
                     $order_details          = array();
                     $invoice_id             = '';
 
-                    $iprof_a = 0;
-                    $iprof_b = 0;
-                    $iprof_c = 0;
-                    $iprof_d = 0;
-                    $iprof_e = 0;
 
                     foreach ( $order_ids as $order_id ) {
-                        $iprof_start = microtime(true);
 
                         // Only needed to build the description string.
                         if ( false === $description ) {
@@ -352,7 +346,6 @@ class RMA_WC_Collective_Invoicing {
                             unset( $order );
                         }
                         
-                        $iprof_a += microtime(true) - $iprof_start;
                         if( $first_order ) {
 
                             // remove flag for first payment method
@@ -363,17 +356,14 @@ class RMA_WC_Collective_Invoicing {
 
                             // create the invoice id based on the first order id
                             $invoice_id = RMA_INVOICE_PREFIX . str_pad( $order_id, max(intval(RMA_INVOICE_DIGITS) - strlen(RMA_INVOICE_PREFIX ), 0 ), '0', STR_PAD_LEFT );
-                            $iprof_b += microtime(true) - $iprof_start;
 
                         }
 
                         // add products to order
                         $order_details_products = $invoice->get_order_details_products( $order_id, $order_details_products );
-                        $iprof_c += microtime(true) - $iprof_start;
 
                         // add shipping costs to order
                         $order_details_products = $invoice->get_order_details_shipping_costs( $order_id, $order_details_products );
-                        $iprof_d += microtime(true) - $iprof_start;
                         
                     }
 
