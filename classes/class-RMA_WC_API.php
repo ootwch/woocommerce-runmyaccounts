@@ -1451,7 +1451,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 					$order_details_products[] = array(
 						'name'       => $item->get_name(),
 						'quantity'   => $item->get_quantity(),
-						'price'      => wc_format_decimal( $product->get_price(), 2 ),
+						'price'      => wc_format_decimal( $order->get_total(), 2 ),
 						'item_id'    => $item_id,
 						'product_id' => $product->get_id(),
 						'sku'        => $product->get_sku() ?? '',
