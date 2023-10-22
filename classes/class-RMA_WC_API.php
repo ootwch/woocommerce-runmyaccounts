@@ -1179,7 +1179,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 
 		}
 
-		public static function get_invoice_data( $order_details, $order_details_products, $invoice_id, $order_id, $description = '' ): array {
+		public static function get_invoice_data( & $order_details, & $order_details_products, $invoice_id, $order_id, $description = '' ): array {
 
 			$settings     = get_option( 'wc_rma_settings' );
 			$fallback_sku = $settings['rma-product-fallback_id'];
@@ -1438,7 +1438,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 		 *
 		 * @since 1.7.0
 		 */
-		public static function get_order_details_products( int $order_id, array $order_details_products = array() ): array {
+		public static function get_order_details_products( int $order_id, array & $order_details_products = array() ): array {
 
 			$order = wc_get_order( $order_id );
 
@@ -1475,7 +1475,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 		 *
 		 * @since 1.7.0
 		 */
-		public static function get_order_details_shipping_costs( int $order_id, array $order_details_products ): array {
+		public static function get_order_details_shipping_costs( int $order_id, array & $order_details_products ): array {
 
 			$settings = get_option( 'wc_rma_settings' );
 			$order    = wc_get_order( $order_id );
@@ -1559,7 +1559,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 		 * @return bool                    true if the invoice creation was successful otherwise false
 		 * @throws DOMException
 		 */
-		public static function create_xml_content( array $data, array $order_ids, bool $collective_invoice = false ): bool {
+		public static function create_xml_content( array & $data, array $order_ids, bool $collective_invoice = false ): bool {
 
 			$url = self::get_caller_url() . RMA_MANDANT . '/invoices?api_key=' . RMA_APIKEY;
 
