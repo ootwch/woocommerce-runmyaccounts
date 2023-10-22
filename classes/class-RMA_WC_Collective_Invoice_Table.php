@@ -35,7 +35,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 	 *
 	 * @var array
 	 */
-	public array $all_items = array();
+	public int $all_items_count = 0;
 
 	/**
 	 * Constructor, we override the parent to pass our own arguments
@@ -377,7 +377,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 			/**
 			 * Third party filter
-			 *
 			 */
 			/*
 				// $partner_id = $order->get_meta( 'third-party-invoice-partner' );
@@ -416,7 +415,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			$this->views();
 
 		}
-		if ( 'botttom' === $which ) {
+		if ( 'bottom' === $which ) {
 			// The code that goes after the table is there.
 			echo "Hi, I'm after the table";
 
@@ -435,7 +434,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		$view = ! empty( $_REQUEST['view'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['view'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 		$status_links = array(
-			'all'    => '<a class="' . ( 'all' === $view ? 'current' : '' ) . '" href="' . add_query_arg( 'view', 'all' ) . '">' . esc_html__( 'All', 'wc-rma' ) . '(' . count( $this->all_items ) . ')</a>',
+			'all'    => '<a class="' . ( 'all' === $view ? 'current' : '' ) . '" href="' . add_query_arg( 'view', 'all' ) . '">' . esc_html__( 'All', 'wc-rma' ) . '(' . $this->all_items_count . ')</a>',
 			'errors' => '<a class="' . ( 'errors' === $view ? 'current' : '' ) . '" href="' . add_query_arg( 'view', 'errors' ) . '">' . esc_html__( 'Errors', 'wc-rma' ) . '(' . count( $this->errors ) . ')</a>',
 		);
 		return $status_links;
@@ -475,7 +474,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 	public function get_sortable_columns() {
 		return array(
 			'col_invoice_id'      => 'invoice_id',
-			'col_customer_number' => 'customer_umber',
+			'col_customer_number' => 'customer_number',
 			'col_due_date'        => 'due_date',
 			'col_price'           => 'price',
 		);
@@ -488,8 +487,8 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 		$rma_options = array( 'invoice_title_en', 'invoice_description_en', 'invoice_footer_en' );
 		foreach ( $rma_options as $o ) {
-			if ( isset( $_POST[$o] ) ) {
-				$$o = sanitize_text_field( wp_unslash( $_POST[$o] ) );
+			if ( isset( $_POST[ $o ] ) ) {
+				$$o = sanitize_text_field( wp_unslash( $_POST[ $o ] ) );
 				update_option( 'rma_' . $o, $$o );
 			} else {
 				$$o = get_option( 'rma_' . $o, '' );
@@ -525,7 +524,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 		$t               = new RMA_WC_Collective_Invoicing();
 		$display_data    = $t->create_collective_invoice( true, true, false, $user_id_filter );
-		$this->all_items = $display_data;
+		$this->all_items_count = count( $display_data );
 
 		// Only show selected invoiced
 		$invoice_ids = ! empty( $_POST['invoice_id'] ) ? array_map( 'esc_attr', array_map( 'sanitize_text_field', wp_unslash( $_POST['invoice_id'] ) ) ) : array();
@@ -538,42 +537,38 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		// filter payment method.
 		$payment_method_filter = isset( $_REQUEST['payment-method-filter'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['payment-method-filter'] ) ) : '';
 		if ( '' !== $payment_method_filter ) {
-			$filtered_items = array();
-			foreach ( $display_data as $key => $item ) {
-				$payment_method = $item['data']['invoice']['paymentmethod'];
-				if ( $payment_method === $payment_method_filter ) {
-					$filtered_items[ $key ] = $item;
-				} elseif ( empty( $payment_method ) && 'no-payment-method' === $payment_method_filter ) {
-					$filtered_items[ $key ] = $item;
+			$display_data = array_filter(
+				$display_data,
+				function( $item ) use ( $payment_method_filter ) {
+					$payment_method = $item['data']['invoice']['paymentmethod'];
+					return ( $payment_method === $payment_method_filter ) || ( empty( $payment_method ) && 'no-payment-method' === $payment_method_filter );
 				}
-			}
-			$display_data = $filtered_items;
+			);
 		}
 
 		// Filter data
 		$filter = ! empty( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '';
 		if ( ! empty( $filter ) ) {
-			$filtered_items = array();
-			foreach ( $display_data as $item ) {
-				$customernumber = $item['data']['invoice']['customernumber'];
-				$user_id        = esc_attr( $item['user_id'] );
+			$display_data = array_filter(
+				$display_data,
+				function( $item ) use ( $filter ) {
+					$customernumber = $item['data']['invoice']['customernumber'];
+					$user_id        = esc_attr( $item['user_id'] );
 
-				if ( 0 === absint( $user_id ) ) {
-					$search_string = 'guest';
-				} else {
-					$user_data  = get_userdata( $item['user_id'] );
-					$user_meta  = get_user_meta( $item['user_id'] );
-					$user_name  = $user_data->display_name;
-					$user_email = $user_meta['user_email'] ?? '';
+					if ( 0 === absint( $user_id ) ) {
+						$search_string = 'guest';
+					} else {
+						$user_data  = get_userdata( $item['user_id'] );
+						$user_meta  = get_user_meta( $item['user_id'] );
+						$user_name  = $user_data->display_name;
+						$user_email = $user_meta['user_email'] ?? '';
 
-					$search_string = $customernumber . $user_name . $user_id . $user_email;
+						$search_string = $customernumber . $user_name . $user_id . $user_email;
+					}
+
+					return str_contains( strtoupper( $search_string ), strtoupper( $filter ) );
 				}
-
-				if ( str_contains( strtoupper( $search_string ), strtoupper( $filter ) ) ) {
-					$filtered_items[] = $item;
-				}
-			}
-			$display_data = $filtered_items;
+			);
 		}
 
 		// Find errors.
@@ -616,20 +611,19 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 
 	public function column_col_invoice_id( $item ) {
-
 		$payment_method = $item['data']['invoice']['paymentmethod'];
 		if ( empty( $payment_method ) ) {
 			$payment_method = '<no payment method>';
 		}
 		echo esc_html( stripslashes( $payment_method ) );
 		echo '<br>';
-
+		
 		$invoice_id = $item['data']['invoice']['invnumber'];
 		$nonce      = wp_create_nonce( 'create_single_invoice_' . $invoice_id );
 		echo esc_html( stripslashes( $invoice_id ) );
-
+		
 		$actions = array(
-
+			
 			'create_invoice' => sprintf( '<a href="#" data-nonce="%s" data-invoice_id="%s">%s</a>', $nonce, $invoice_id, __( 'Create Invoice', 'rma-wc' ) ),
 		);
 		echo $this->row_actions( $actions );
@@ -637,7 +631,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 	public function column_col_customer_number( $item ) {
 		$user_data = get_userdata( $item['user_id'] );
-
+		
 		if ( false !== $user_data ) {
 			$customernumber = $item['data']['invoice']['customernumber'];
 			if ( empty( $customernumber ) ) {
@@ -651,7 +645,8 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 				printf(
 					' %s (  <a href="%s" > %s </a>  )',
 					wp_kses_post( $customernumber ),
-					esc_url( get_edit_user_link( $item['user_id'] ) ),
+					// Get the user link directly without costly permission checks.
+					esc_url( apply_filters( 'get_edit_user_link', add_query_arg( 'user_id', $item['user_id'], self_admin_url( 'user-edit.php' ) ), $item['user_id'] ) ),
 					esc_html( $user_data->display_name )
 				);
 			}
@@ -720,6 +715,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		$this->single_row_columns( $item );
 		$this->display_order_rows( $item );
 		echo '</tr>';
+		wp_cache_flush();
 	}
 
 	/**
@@ -737,6 +733,15 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 		$alternate = false;
 
+		echo PHP_EOL . '<tr class="no-items">' . PHP_EOL;
+
+		echo '<td class="colspanchange" colspan="' . ( $this->get_column_count() ) . '">' . PHP_EOL;
+
+		echo '<table class="widefat fixed" cellspacing="0">' . PHP_EOL;
+		echo '<thead>' . PHP_EOL;
+		echo '</thead' . PHP_EOL;
+		echo '<tbody>' . PHP_EOL;
+
 		foreach ( $item['data']['part'] as $part ) {
 
 			$description = preg_replace( '[&#xA;|&#xD;]', '<br/>', $part['description'] );
@@ -746,11 +751,9 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			// $row_info = sprintf( 'data-customer_id=%s', $user_data->ID );
 			// $row_info = sprintf( 'data-customernumber=%s', $invoice_data['invoice']['customernumber'] );
 
-			$order_rows .= sprintf( PHP_EOL . '<tr style="display:none" class="%s %s">', $alternate ? 'alternate' : '', 'order-details-' . esc_attr( $invoice_id ) );
+			echo sprintf( PHP_EOL . '<tr style="display:none" class="%s %s">', $alternate ? 'alternate' : '', 'order-details-' . esc_attr( $invoice_id ) );
 
 			$alternate = ! $alternate;
-			// $order_rows .= sprintf( PHP_EOL . '<tr %s %s>', $row_info, $alternate ? 'class="alternate"' : '' );
-
 			// Checkbox for orders
 			/*
 			$order_rows .= '<td>';
@@ -762,29 +765,22 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			);
 			$order_rows .= '</td>' . PHP_EOL;
 			*/
-
-			$order_rows .= "<td class='column-partnumber'>" . esc_html( $part['partnumber'] ) . '</td>' . PHP_EOL;
-			$order_rows .= "<td class='column-description'>" . wp_kses_post( $description ) . '</td>' . PHP_EOL;
-			$order_rows .= "<td class='column-projectnumber'>" . esc_html( $part['projectnumber'] ?? '' ) . '</td>' . PHP_EOL;
+			echo "<td class='column-partnumber'>" . esc_html( $part['partnumber'] ) . '</td>' . PHP_EOL;
+			echo "<td class='column-description'>" . wp_kses_post( $description ) . '</td>' . PHP_EOL;
+			echo "<td class='column-projectnumber'>" . esc_html( $part['projectnumber'] ?? '' ) . '</td>' . PHP_EOL;
 
 			// Price and selected price.
-			$order_rows .= '<td class="column-sellprice">';
-			$order_rows .= '<div>' . wc_price( $part['sellprice'] ) . '</div>';
-			$order_rows .= '</td>' . PHP_EOL;
-			$order_rows .= '</tr>' . PHP_EOL;
+			echo '<td class="column-sellprice">';
+			echo '<div>' . wc_price( $part['sellprice'] ) . '</div>';
+			echo '</td>' . PHP_EOL;
+			echo '</tr>' . PHP_EOL;
 
 			$total_amount += $part['sellprice'];
+
+			flush();
+			ob_flush();
 		}
 
-		echo PHP_EOL . '<tr class="no-items">' . PHP_EOL;
-
-		echo '<td class="colspanchange" colspan="' . ( $this->get_column_count() ) . '">' . PHP_EOL;
-
-		echo '<table class="widefat fixed" cellspacing="0">' . PHP_EOL;
-		echo '<thead>' . PHP_EOL;
-		echo '</thead' . PHP_EOL;
-		echo '<tbody>' . PHP_EOL;
-		echo $order_rows . PHP_EOL;
 		echo '</tbody>' . PHP_EOL;
 		echo '</table>' . PHP_EOL;
 
