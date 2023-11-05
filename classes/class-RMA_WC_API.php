@@ -567,7 +567,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 		 *
 		 * @return mixed .
 		 */
-		public function get_vendor_invoices() {
+		public function get_vendor_invoices( $from = '1900-01-01', $to = null ) {
 			if ( ! RMA_MANDANT || ! RMA_APIKEY ) {
 
 				$log_values = array(
@@ -585,6 +585,11 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 			}
 
 			$url = self::get_caller_url() . RMA_MANDANT . '/payables' . '?api_key=' . RMA_APIKEY;
+
+			$url .= '&from=' . sanitize_key( $from );
+			if ( ! empty( $to ) ) {
+				$url .= '&to=' . sanitize_key( $to );
+			}
 
 			$response = wp_remote_get( $url, self::http_args );
 
@@ -917,7 +922,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 		 * @param bool $force_refresh .
 		 * @return mixed .
 		 */
-		public function get_project_bookings( $force_refresh = false ) {
+		public function get_project_bookings( $force_refresh = false, $year = null ) {
 
 			/**
 			 * Array of accounts where the description is replaced by the account name.
@@ -943,7 +948,8 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 			}
 
 			// Transient.
-			$transient = 'rma_project_booking_transient';
+			$transient = 'rma_project_booking_transient_' . ( $year ?? 'all' );
+
 			$bookings  = get_transient( $transient );
 
 			// $force_refresh = true; // for debugging.
@@ -964,8 +970,8 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 
 				// Save memory - only load one month at a time starting 01.01.2022.
 
-				$start_date = new \DateTime( '2022-01-01' );
-				$end_date   = new \DateTime( 'first day of last month' );
+				$start_date = new \DateTime( $year ? $year . '-01-01' : '2022-01-01' );
+				$end_date   = new \DateTime( $year ? $year . '-12-31' : 'first day of last month' );
 
 				$interval = \DateInterval::createFromDateString( '1 month' );
 				$period   = new \DatePeriod( $start_date, $interval, $end_date );
@@ -1015,7 +1021,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 					}
 				}
 
-				$vendor_invoices = $this->get_vendor_invoices();
+				$vendor_invoices = $this->get_vendor_invoices( $start_date, $end_date );
 				foreach ( $vendor_invoices['payable'] as $payable ) {
 
 					foreach ( $payable['expenseentries'] as $parts ) {
