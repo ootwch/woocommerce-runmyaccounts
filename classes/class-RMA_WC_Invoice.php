@@ -22,7 +22,7 @@ class RMA_WC_Invoice {
                 add_filter( 'woocommerce_order_data_store_cpt_get_orders_query', array( $this, 'handle_invoice_number_query_var' ), 10, 2 );
 
                 // update order status once per hour and display it on the admin and user order overview
-                add_filter( 'init', array( $this, 'maybe_create_schedule_update_invoice_status_event' ) );
+                add_action( 'init', array( $this, 'maybe_create_schedule_update_invoice_status_event' ) );
                 add_action( 'update_invoice_status', array( $this, 'hourly_update_invoice_status' ) );
 
                 // add status column to order page
