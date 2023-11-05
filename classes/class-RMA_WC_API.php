@@ -604,7 +604,9 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 				} else {
 					$response = $response['http_response'];
 					foreach ( $response as $object ) {
-						$message .= ' ' . $object->url;
+						if ( null !== $object ) {
+							$message .= ' ' . $object->url;
+						}
 						break;
 					}
 				}
@@ -1021,8 +1023,9 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 					}
 				}
 
-				$vendor_invoices = $this->get_vendor_invoices( $start_date, $end_date );
-				foreach ( $vendor_invoices['payable'] as $payable ) {
+				$vendor_invoices        = $this->get_vendor_invoices( $start_date->format( 'Y-m-d' ), $end_date->format( 'Y-m-d' ) );
+				$vendor_invoces_payable = $vendor_invoices['payable'] ?? array();
+				foreach ( $vendor_invoces_payable as $payable ) {
 
 					foreach ( $payable['expenseentries'] as $parts ) {
 
