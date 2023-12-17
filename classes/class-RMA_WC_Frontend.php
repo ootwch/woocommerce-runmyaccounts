@@ -230,6 +230,7 @@ if ( ! class_exists('RMA_WC_Frontend' ) ) {
 	    public function admin_notices() {
 
 	        $rma_settings = get_option('wc_rma_settings');
+            if( defined( 'RMA_MANDANT_LIVE' ) ) {
 	        $rma_client = ( isset ($rma_settings['rma-live-client']) ? $rma_settings['rma-live-client'] : '');
 	        $rma_apikey = ( isset ($rma_settings['rma-live-apikey']) ? $rma_settings['rma-live-apikey'] : '');
 
@@ -247,7 +248,7 @@ if ( ! class_exists('RMA_WC_Frontend' ) ) {
 
             }
 
-	        if( ( !$rma_client || !$rma_apikey ) ) {
+	        if( ( ( ! defined( 'RMA_MANDANT_LIVE' ) && ! $rma_client ) || ( ( ! defined( 'RMA_APIKEY_LIVE' ) && ! $rma_apikey ) ) ) {
 
 		        $html = '<div class="notice notice-warning">';
 		        $html .= '<p>';
