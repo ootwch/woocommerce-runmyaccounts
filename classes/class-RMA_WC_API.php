@@ -1458,8 +1458,8 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 				// make sure the product is still available in WooCommerce
 				if ( is_object( $product ) ) {
 					$order_details_products[] = array(
-						'name'       => $item->get_name(),
-						'quantity'   => $item->get_quantity(),
+						'name'       => ( $item->get_quantity() !== 1 ? intval( $item->get_quantity() ) . ' x ' : '' ) . $item->get_name(),
+						'quantity'   => 1, // Must be one, as for the fees, discounts etc we dont have products. //TODO: Make this better.
 						'price'      => wc_format_decimal( $order->get_total(), 2 ),
 						'item_id'    => $item_id,
 						'product_id' => $product->get_id(),
