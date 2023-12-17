@@ -409,6 +409,14 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			}
 			echo '</select>';
 
+			/** Boat Rental Filter */
+			$boat_rental_filter = isset( $_REQUEST['boat-rental-filter'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['boat-rental-filter'] ) ) : '';
+			echo '<select style="width:50%;" class="select short boat-rental-filter" name="boat-rental-filter" data-allow_clear="true">';;
+			echo '<option class="select short" value="" ' . esc_attr( wc_selected( $boat_rental_filter, '' ) ) . '></option>';
+			echo '<option class="select short" value="rental-only" ' . esc_attr( wc_selected( $boat_rental_filter, 'rental-only' ) ) . '>&lt;Only rental products&gt;></option>';
+			echo '<option class="select short" value="no-rental" ' . esc_attr( wc_selected( $boat_rental_filter, 'no-rental' ) ) . '>&lt;Exclude rental products&gt;></option>';
+			echo '</select>';
+
 			$this->search_box( 'Search', 'customer-search' );
 			$this->views();
 
@@ -544,7 +552,40 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			);
 		}
 
-		// Filter data
+		// filter product class (all/non-rental/rental).
+		$boat_rental_filter = isset( $_REQUEST['boat-rental-filter'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['boat-rental-filter'] ) ) : '';
+		if ( '' !== $boat_rental_filter ) {
+			$display_data = array_filter(
+				array_map(
+					function( $item ) use ( $boat_rental_filter ) {
+						$settings = get_option( 'wc_rma_settings' );
+						$rental_booking_article     = $settings['rma-product-rnb-rental-article'];
+						$rental_cancelation_article = $settings['rma-product-rnb-cancelation-article'];
+						$rental_sku                  = array( $rental_booking_article, $rental_cancelation_article );
+						switch ( $boat_rental_filter ) {
+							case 'rental-only':
+								$data                 = array_filter( $item['data']['part'], fn( $part ) => in_array( $part['partnumber'], $rental_sku, true ) );
+								$item['data']['part'] = $data;
+								break;
+							case 'no-rental':
+								$data                 = array_filter( $item['data']['part'], fn( $part ) => ! in_array( $part['partnumber'], $rental_sku, true ) );
+								$item['data']['part'] = $data;
+								break;
+							default:
+								wp_die( 'Invalid boat rental filter: ' . esc_attr( $boat_rental_filter ) . ' !' );
+								break;
+						}
+						$order_ids         = array_column( $item['data']['part'], 'order_id' );
+						$item['order_ids'] = $order_ids;
+
+						return empty( $order_ids ) ? false : $item;
+					},
+					$display_data,
+				),
+			);
+		}
+
+		// Filter data by search term.
 		$filter = ! empty( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '';
 		if ( ! empty( $filter ) ) {
 			$display_data = array_filter(
