@@ -104,8 +104,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 					wp_die( 'Current user does not have the permission to create invoices.' );
 				}
 
-				$this->total_invoice_amount = 0;  // Updated by jQuery script.
-
 				/*
 				* -- Set current page to 1 --
 				*/
