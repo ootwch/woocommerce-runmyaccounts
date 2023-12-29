@@ -2,8 +2,8 @@
 * Contributors: openstream, codestylist
 * Tags: Run my Accounts, WooCommerce, Billing
 * Requires at least: 4.7
-* Tested up to: 5.9
-* Stable tag: 1.7.0
+* Tested up to: 6.2
+* Stable tag: 1.7.1
 * Requires PHP: 7.2
 * License: GPLv3
 * License URI: https://www.gnu.org/licenses/gpl-3.0.html
@@ -53,6 +53,11 @@ Please send a request to the Openstream Internet Solutions. We provide customiza
 * The collective invoice only works with available products. If a product was deleted between the order and the invoice, the product cannot be included in the invoice anymore.
 
 == Changelog ==
+= 1.7.1 =
+* Fix - added handling cURL error on settings page
+* Compatibility - tested up to WooCommerce 7.4
+* Compatibility - tested up to WordPress 6.2
+
 = 1.7.0 =
 * Feature - added collective invoice per customer
 * Feature - added native support for WooCommerce Rental & Booking System (https://codecanyon.net/item/rnb-woocommerce-rental-booking-system/14835145)

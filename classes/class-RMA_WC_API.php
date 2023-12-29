@@ -218,7 +218,9 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 				$message .= ' ' . wp_remote_retrieve_response_message( $response );
 
 				if ( is_wp_error( $response ) ) {
-					$message .= ' ' . $response->get_error_message();
+					$error_string = $response->get_error_message();
+					$message .= ' ' . $error_string;
+					echo '<div id="message" class="error"><p>' . esc_html( $error_string ) . '</p></div>';
 				} else {
 					foreach ( $response as $object ) {
 						$message .= ' ' . $object->url;
