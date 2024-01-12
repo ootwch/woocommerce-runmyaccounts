@@ -432,6 +432,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 				if ( is_wp_error( $response ) ) {
 					$message .= ' ' . $response->get_error_message();
 				} else {
+					$response = (array) $response['http_response'];
 					foreach ( $response as $object ) {
 						$message .= ' ' . $object->url;
 						break;
@@ -1625,7 +1626,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 					$order->add_order_note( $note );
 
 					update_post_meta( $order_id, '_rma_invoice', $invoice_number );
-					update_post_meta( $order_id, '_rma_invoice_status', sanitize_text_field( __( 'NEW', 'wma-wc' ) ) );
+					update_post_meta( $order_id, '_rma_invoice_status', sanitize_text_field( __( 'NEW', 'rma-wc' ) ) );
 					update_post_meta( $order_id, '_rma_invoice_status_timestamp', current_datetime()->format( 'c' ) );
 
 					unset( $order );
