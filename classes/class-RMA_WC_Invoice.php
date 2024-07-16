@@ -233,7 +233,7 @@ class RMA_WC_Invoice {
         public function invoice_pdf_download() {
 
             $path = wp_parse_url( $_SERVER['REQUEST_URI'], PHP_URL_PATH );
-            if ( '/my-account/invoices/pdf' !== dirname( $path )) {
+            if ( '/my-account/rma-invoices/pdf' !== dirname( $path )) {
                 return;
             }
 
