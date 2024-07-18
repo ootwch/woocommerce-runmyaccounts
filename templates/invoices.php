@@ -14,6 +14,11 @@
 defined( 'ABSPATH' ) || exit;
 
 $current_page = (int) basename( wp_parse_url( $_SERVER['REQUEST_URI'], PHP_URL_PATH ) ) ?: 1; // phpcs:ignore
+
+if ( false === $args['invoices'] ){
+	echo '<div><strong>Invoices could not be loaded - perhaps the bookkeeping system is under maintenance.</strong></div>';
+}
+
 $invoices     = $args['invoices']['invoice'];
 $has_invoices = ! empty( $invoices );
 
@@ -32,8 +37,6 @@ $address_place = empty( $args['customer_info']['address']['place'] ) ? '' : $arg
 echo esc_html( $address_zip . ' ' . $address_place );
 echo '</div>';
 echo '<div>' . esc_html__( 'Please contact support to change your billing information', 'rma-wc' ) . '</div> ';
-$max_num_per_page = 20;
-$max_num_pages    = intdiv( count( $invoices ), $max_num_per_page ) + 1;
 
 do_action( 'woocommerce_before_account_invoices', $has_invoices );
 
@@ -48,6 +51,10 @@ $invoice_columns = array(
 ?>
 
 <?php if ( $has_invoices ) : ?>
+	<?php
+	$max_num_per_page = 20;
+	$max_num_pages    = intdiv( count( $invoices ), $max_num_per_page ) + 1;
+	?>
 
 	<table class="woocommerce-invoices-table woocommerce-MyAccount-invoices shop_table shop_table_responsive my_account_invoices account-invoices-table">
 		<thead>
@@ -68,15 +75,17 @@ $invoice_columns = array(
 						<td class="woocommerce-invoices-table__cell woocommerce-invoices-table__cell-<?php echo esc_attr( $column_id ); ?>" data-title="<?php echo esc_attr( $column_name ); ?>">
 							<?php if ( has_action( 'woocommerce_my_account_my_invoices_column_' . $column_id ) ) : ?>
 								<?php do_action( 'woocommerce_my_account_my_invoices_column_' . $column_id, $invoice ); ?>
-
+							// TODO: This link is not implemented yet.
 							<?php elseif ( 'invnumber' === $column_id ) : ?>
-								<a href="<?php '/my-account/view-order/' . $invoice['invnumber'] . '/'; ?>">
+
+								<a href="<?php _e( wc_get_endpoint_url( 'view-order',  $invoice['invnumber'] ), wc_get_page_permalink( 'orders' )); ?>">
 									<?php echo esc_html( _x( '#', 'hash before invoice number', 'woocommerce' ) . $invoice['invnumber'] ); ?>
 								</a>
 								<?php echo esc_html( $invoice['customer']['name'] ); ?>
 
 							<?php elseif ( 'duedate' === $column_id ) : ?>
-								<time datetime="<?php echo esc_attr( $invoice['duedate'] ); ?>"><?php echo esc_html( wp_date( get_option( 'date_format' ), strtotime( $invoice['duedate'] ) ) ); ?></time>
+								<?php $duedate = $invoice['duedate'] ?? ''; ?>
+								<time datetime="<?php echo esc_attr( $duedate ); ?>"><?php echo empty($duedate) ? '-' : esc_html( wp_date( get_option( 'date_format' ), strtotime( $duedate ) ) ); ?></time>
 
 							<?php elseif ( 'status' === $column_id ) : ?>
 								<?php echo esc_html( __( $invoice['status'], 'wc-rma' ) ); ?>
@@ -91,7 +100,7 @@ $invoice_columns = array(
 							<?php elseif ( 'pdf' === $column_id ) : ?>
 								<?php
 								$nonce          = wp_create_nonce( 'download-pdf-nonce-' . strtoupper( $invoice['invnumber'] ) );
-								$download_link  = '<a href="' . get_site_url() . '/my-account/rma-invoices/pdf/' . $invoice['invnumber'];
+								$download_link  = '<a href="' . wc_get_endpoint_url( 'invoices/pdf', $invoice['invnumber'] );
 								$download_link .= '?_wpnonce=' . $nonce . '';
 								$download_link .= '" download="' . $invoice['invnumber'] . '.pdf"';
 								$download_link .= 'target="_blank"';
