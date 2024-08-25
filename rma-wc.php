@@ -83,3 +83,14 @@ $s = new RMA_WC_Invoice();
 
 // RMA Collective Invoice Dashboard
 new RMA_WC_Admin_Collective_Invoice();
+
+// Declare High Performance Table Support.
+add_action(
+	'before_woocommerce_init',
+	function() {
+		if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
+			\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
+		}
+	}
+);
+
