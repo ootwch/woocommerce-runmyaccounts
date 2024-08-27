@@ -29,6 +29,12 @@ class RMA_WC_Invoice {
                 add_filter( 'manage_edit-shop_order_columns', array( $this, 'add_status_column_to_order_table' ) , 20);
                 add_action( 'manage_shop_order_posts_custom_column', array( $this, 'add_status_value_to_order_table_row' ) );
 
+                // allow filtering for order invoice status
+                add_action( 'woocommerce_order_list_table_restrict_manage_orders', array( $this, 'filter_status_column' ), 25, 2 );
+	            add_action( 'restrict_manage_posts', array( $this, 'filter_status_column' ), 25, 2 );
+	            add_action( 'woocommerce_order_data_store_cpt_get_orders_query', array( $this, 'filter_orders_hpos' ), 25, 2 ); // HPOS.
+	            add_action( 'pre_get_posts', array( $this, 'filter_orders_legacy' ), 25, 2 ); // Legacy.
+
                 // User profile invoice info
 
                 // Add endpoints
@@ -139,6 +145,99 @@ class RMA_WC_Invoice {
 
 
         }
+
+        public function filter_status_column( $post_type, $which ) {
+		
+            if( 'shop_order' !== $post_type ) {
+                return;
+            }
+            
+            $status_field = isset( $_GET[ 'rma_status_field' ] ) ? $_GET[ 'rma_status_field' ] : '';
+    
+            ?>
+                <select name="rma_status_field">
+                    <option selected="selected" value="any" <?php selected( $status_field, 'any' ); ?>>Any Invoice Status</option>
+                    <option value="invoiced" <?php selected( $status_field, 'invoiced' ); ?>>Invoiced</option>
+                    <option value="empty" <?php selected( $status_field, 'empty' ); ?>>No Invoice</option>
+                </select>
+            <?php
+        }
+
+        public function filter_orders_hpos( $query_args ) {
+
+            $status_field = isset( $_GET[ 'rma_status_field' ] ) ? $_GET[ 'rma_status_field' ] : '';
+
+            if ( 'any' === $status_field ) {
+                return $query_args;
+            }
+
+            if ( 'empty' === $status_field ) {   
+                $query_args[ 'meta_query' ] = array(
+                    array(
+                        'key'   => '_rma_invoice_status',
+                        'value' => '',
+                    ),
+                );
+            }
+
+            if ( 'invoiced' === $status_field ) {   
+                $query_args[ 'meta_query' ] = array(
+                    array(
+                        'key'   => '_rma_invoice_status',
+                        'value' => '',
+                        'compare' => '!=',
+                    ),
+                );
+            }
+
+            
+            return $query_args;
+        }
+
+        public function filter_orders_legacy( $query ) {
+
+            if( ! is_admin() ) {
+                return;
+            }
+        
+            global $pagenow;
+            // just being super-accurate here
+            if( 'edit.php' !== $pagenow || 'shop_order' !== $query->get( 'post_type' ) ) {
+                return;
+            }
+
+            $status_field = isset( $_GET[ 'rma_status_field' ] ) ? $_GET[ 'rma_status_field' ] : '';
+
+            if ( 'any' === $status_field ) {
+                return $query;
+            }
+
+            if ( 'empty' === $status_field ) {  
+                $query->set( 'meta_query', array(
+                    'relation' => 'OR',
+                    array(
+                        'key' => '_rma_invoice_status',
+                        'compare' => 'NOT EXISTS',
+                    ),
+                    array(
+                        'key' => '_rma_invoice_status',
+                        'value' => '',
+                    )
+                ) );
+            }
+
+            if ( 'invoiced' === $status_field ) {  
+                $query->set( 'meta_query', array(
+                    array(
+                        'key' => '_rma_invoice_status',
+                        'value' => '',
+                        'compare' => '!=',
+                    )
+                ) );
+            }
+
+        }
+
 
 
         /**
