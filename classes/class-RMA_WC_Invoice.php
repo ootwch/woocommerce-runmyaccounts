@@ -211,9 +211,9 @@ class RMA_WC_Invoice {
             if ( 'any' === $status_field ) {
                 return $query;
             }
-
+            $meta_query = (array)$query->get('meta_query');
             if ( 'empty' === $status_field ) {  
-                $query->set( 'meta_query', array(
+                $meta_query[] = array(
                     'relation' => 'OR',
                     array(
                         'key' => '_rma_invoice_status',
@@ -223,18 +223,21 @@ class RMA_WC_Invoice {
                         'key' => '_rma_invoice_status',
                         'value' => '',
                     )
-                ) );
+                );
             }
 
             if ( 'invoiced' === $status_field ) {  
-                $query->set( 'meta_query', array(
+                $meta_query[] = array(
                     array(
                         'key' => '_rma_invoice_status',
                         'value' => '',
                         'compare' => '!=',
                     )
-                ) );
+                );
             }
+            
+            // Set the meta query to the complete, altered query
+            $query->set('meta_query',$meta_query);
 
         }
 
