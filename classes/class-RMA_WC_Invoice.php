@@ -90,19 +90,21 @@ class RMA_WC_Invoice {
         public function hourly_update_invoice_status( ) {
             $RMA_WC_API = new RMA_WC_API();
             $status_array = $RMA_WC_API->get_invoice_status();
-            foreach( $status_array as $invoice_number=>$status) {
-                $orders = wc_get_orders( array( 'invoice_number' =>  $invoice_number ) );
-                foreach( $orders as $order ) {
-                    $debug_var = (json_encode(array(
-                        'id' => $order->get_id(),
-                        'inv'=> $invoice_number,
-                        'stat'=>$status,
-                        'array'=>$status_array
-                    )));
+            if ( false !== $status_array ) {
+                foreach( $status_array as $invoice_number=>$status) {
+                    $orders = wc_get_orders( array( 'invoice_number' =>  $invoice_number ) );
+                    foreach( $orders as $order ) {
+                        $debug_var = (json_encode(array(
+                            'id' => $order->get_id(),
+                            'inv'=> $invoice_number,
+                            'stat'=>$status,
+                            'array'=>$status_array
+                        )));
 
-                    $order->update_meta_data( '_rma_invoice_status', sanitize_text_field( $status ) );
-                    $order->update_meta_data('_rma_invoice_status_timestamp', current_datetime()->format('c') );
-                    $order->save_meta_data();
+                        $order->update_meta_data( '_rma_invoice_status', sanitize_text_field( $status ) );
+                        $order->update_meta_data('_rma_invoice_status_timestamp', current_datetime()->format('c') );
+                        $order->save_meta_data();
+                    }
                 }
             }
 
