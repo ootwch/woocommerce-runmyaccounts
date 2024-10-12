@@ -106,6 +106,16 @@ class RMA_WC_Invoice {
                         $order->save_meta_data();
                     }
                 }
+            } else {
+                $log_values = array(
+					'status'     => 'error',
+					'section_id' => '',
+					'section'    => esc_html_x( 'Get Invoice Status', 'Log Section', 'rma-wc' ),
+					'mode'       => self::rma_mode(),
+					'message'    => esc_html_x( 'Invoice Status could not be read.', 'Log Section', 'rma-wc' ),
+				);
+
+				RMA_WC_API::write_log( $log_values );
             }
 
             unset( $RMA_WC_API );
