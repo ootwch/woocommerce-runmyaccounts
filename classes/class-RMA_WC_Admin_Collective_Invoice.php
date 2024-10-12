@@ -17,13 +17,19 @@ if ( ! defined( 'ABSPATH' ) ) {
 class RMA_WC_Admin_Collective_Invoice {
 
 	/**
+	 * The invoice table.
+	 *
+	 * @var RMA_WC_Collective_Invoice_Table
+	 */
+	private RMA_WC_Collective_Invoice_Table $invoice_table;
+
+	/**
 	 * Add the hooks for the menu and the form response.
 	 */
 	public function __construct() {
 
 		add_action( 'admin_menu', array( $this, 'add_menu_entry' ), 12 );
 		add_action( 'admin_post_collective_invoicing_form_response', array( $this, 'start_billing_run' ) );
-
 	}
 
 
@@ -48,7 +54,6 @@ class RMA_WC_Admin_Collective_Invoice {
 
 		// Initialize the list table instance when the page is loaded.
 		add_action( "load-$page", array( $this, 'init_list_table' ) );
-
 	}
 
 	public function init_list_table() {
@@ -116,13 +121,14 @@ class RMA_WC_Admin_Collective_Invoice {
 					<form id="invoice-dashboard-form" method="post">					
 				<?php
 				do_action( 'admin_table_notices' );
-				$this->invoice_table->display(); ?>					
+				$this->invoice_table->display();
+				?>
+									
 					</form>
 						</div>			
 					</div>
 			</div>
 		<?php
-
 	}
 
 	public function handle_create_invoice() {
@@ -184,7 +190,6 @@ class RMA_WC_Admin_Collective_Invoice {
 			wp_die( esc_html__( 'Security check failure', 'rma_wc' ) );
 
 		}
-
 	}
 
 	public function handle_confirm_invoice() {
