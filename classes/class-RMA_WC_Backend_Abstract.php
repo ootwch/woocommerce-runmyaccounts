@@ -144,7 +144,7 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
 
                     // add invoice column to order page and make it searchable
                     add_filter( 'manage_woocommerce_page_wc-orders_columns', array( $this, 'add_column_to_order_table' ) );
-                    add_action( 'manage_woocommerce_page_wc-orders_custom_column', array( $this, 'add_value_to_order_table_row' ), 10, 2 );
+                    add_action( 'manage_woocommerce_page_wc-orders_custom_column', array( $this, 'add_value_to_order_table_row_hpos' ), 10, 2 );
                     add_filter( 'woocommerce_order_table_search_query_meta_keys', array( $this, 'search_column' ), 10, 1 );
                     
                     // add bulk action to order page
@@ -320,6 +320,17 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
             $columns = RMA_WC_Frontend::array_insert( $columns, 'order_total', 'rma_invoice', __( 'Invoice #', 'rma-wc'));
 
             return $columns;
+        }
+
+        public function add_value_to_order_table_row_hpos( $column, $order ) {
+
+            global $post;
+
+            switch ( $column ) {
+                case 'rma_invoice' :
+                    echo esc_attr( $order->get_meta( '_rma_invoice', true ) );
+                default:
+            }
         }
 
         public function add_value_to_order_table_row( $column, $order ) {
