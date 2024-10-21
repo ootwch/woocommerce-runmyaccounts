@@ -1,6 +1,8 @@
 <?php
 
-if ( ! defined('ABSPATH')) exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
 
 /**
  * Class for collective invoicing
@@ -17,13 +19,12 @@ class RMA_WC_Collective_Invoicing {
 		// read rma settings
 		$this->settings = get_option( 'wc_rma_settings_collective_invoice' );
 
-		add_action( 'wp_ajax_next_invoice_date', [ $this, 'ajax_next_invoice_date' ] );
+		add_action( 'wp_ajax_next_invoice_date', array( $this, 'ajax_next_invoice_date' ) );
 
 		add_action( 'run_my_accounts_collective_invoice', array( $this, 'create_collective_invoice' ) );
 
 		// Collective invoices should have the order_id in the name.
 		add_filter( 'rma_invoice_part', array( $this, 'add_order_id_to_description' ), 10, 2 );
-
 	}
 
 	/**
@@ -34,21 +35,21 @@ class RMA_WC_Collective_Invoicing {
 	 * @throws Exception
 	 * @since 1.7.0
 	 */
-	public function ajax_next_invoice_date(){
+	public function ajax_next_invoice_date() {
 
-		$period  = $_POST[ 'period' ];
-		$weekday = $_POST[ 'weekday' ];
+		$period  = $_POST['period'];
+		$weekday = $_POST['weekday'];
 
-		$dates   = self::get_next_invoice_date( $period, $weekday );
+		$dates = self::get_next_invoice_date( $period, $weekday );
 
-		if( !empty( $dates ) ) {
+		if ( ! empty( $dates ) ) {
 
-			$this->settings[ 'collective_invoice_next_date_ts' ] = strtotime(date('Y-m-d', $dates[ 'next_date_ts' ] ) );
+			$this->settings['collective_invoice_next_date_ts'] = strtotime( date( 'Y-m-d', $dates['next_date_ts'] ) );
 			update_option( 'wc_rma_settings_collective_invoice', $this->settings );
 
 		}
 
-		echo $dates[ 'date' ] ?? '';
+		echo $dates['date'] ?? '';
 		exit();
 	}
 
@@ -68,60 +69,59 @@ class RMA_WC_Collective_Invoicing {
 		// get next time from cron hook
 		$next_time = self::get_cron_next_time();
 		// separate hour, minutes and seconds from next cron hook run
-		$time     = explode( ':', $next_time[ 'time' ] );
-		$time_utc = explode( ':', $next_time[ 'time_utc' ] );
+		$time     = explode( ':', $next_time['time'] );
+		$time_utc = explode( ':', $next_time['time_utc'] );
 
 		switch ( $period ) {
-			case 'week' :
+			case 'week':
 				// get number day of the week from weekday
 				$weekday_number = array_search( $weekday, self::get_weekdays() );
 				// get timestamp and add hours and minutes if next cron run
 				$dt = new DateTime();
 				// set time by hours and minutes from next cron hook run
-				$dt->setTime( $time_utc[ 0 ], $time_utc[ 1 ], $time_utc[ 2 ]);
+				$dt->setTime( $time_utc[0], $time_utc[1], $time_utc[2] );
 				// create today's cron time stamp
 				$possible_today_cron_ts_utc = $dt->getTimestamp();
 
 				// if weekday is today and the next cron run is today
-				if( date('N', strtotime( 'now' ) ) == $weekday_number &&
-					$next_time[ 'next_time_ts_utc' ] == $possible_today_cron_ts_utc ) {
+				if ( date( 'N', strtotime( 'now' ) ) == $weekday_number &&
+					$next_time['next_time_ts_utc'] == $possible_today_cron_ts_utc ) {
 
-					$next_date_ts_utc = strtotime('now');
+					$next_date_ts_utc = strtotime( 'now' );
 
 				}
 				// otherwise, set next date to next week
 				else {
-					$next_date_ts_utc = strtotime("next $weekday");
+					$next_date_ts_utc = strtotime( "next $weekday" );
 				}
 				break;
-			case 'second_week' :
-				$next_date_ts_utc = strtotime("+2 weeks next $weekday");
+			case 'second_week':
+				$next_date_ts_utc = strtotime( "+2 weeks next $weekday" );
 				break;
-			case 'month' :
-				$next_date_ts_utc = strtotime("first $weekday of next month");
+			case 'month':
+				$next_date_ts_utc = strtotime( "first $weekday of next month" );
 				break;
-			case 'manually' :
+			case 'manually':
 				// Wait forever (until 2030) to trigger automatically.
 				$next_date_ts_utc = strtotime( '01/01/2030' );
 				break;
 		}
 
-		if( !empty( $next_date_ts_utc ) ) {
+		if ( ! empty( $next_date_ts_utc ) ) {
 
 			// add hours and minutes to next date
 			$dt = new DateTime( 'now', new DateTimeZone( wp_timezone_string() ) );
 			$dt->setTimestamp( $next_date_ts_utc );
-			$dt->setTime( $time[ 0 ], $time[ 1 ], '00' );
+			$dt->setTime( $time[0], $time[1], '00' );
 
 			return array(
-				'next_date_ts' => $dt->getTimestamp() + $dt->getOffset() ,
-				'date'         => date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $dt->getTimestamp() + $dt->getOffset() )
+				'next_date_ts' => $dt->getTimestamp() + $dt->getOffset(),
+				'date'         => date_i18n( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $dt->getTimestamp() + $dt->getOffset() ),
 			);
 
 		}
 
 		return array();
-
 	}
 
 	/**
@@ -142,7 +142,6 @@ class RMA_WC_Collective_Invoicing {
 			6 => 'saturday',
 			7 => 'sunday',
 		);
-
 	}
 
 	/**
@@ -163,22 +162,19 @@ class RMA_WC_Collective_Invoicing {
 
 			foreach ( $cron as $hook => $values ) {
 
-				if( 'run_my_accounts_collective_invoice' == $hook ) {
+				if ( 'run_my_accounts_collective_invoice' == $hook ) {
 
 					return array(
 						'next_time_ts_utc' => $next_ts_utc,
 						'time_utc'         => date( get_option( 'time_format' ) . ':s', $next_ts_utc ),
-						'time'             => get_date_from_gmt( date( get_option( 'time_format' ), $next_ts_utc ), get_option( 'time_format' ) )
+						'time'             => get_date_from_gmt( date( get_option( 'time_format' ), $next_ts_utc ), get_option( 'time_format' ) ),
 					);
 
 				}
-
 			}
-
 		}
 
 		return array();
-
 	}
 
 	/**
@@ -192,24 +188,29 @@ class RMA_WC_Collective_Invoicing {
 	 */
 	public function get_not_invoiced_orders( array $customers = array() ): array {
 
-		switch ( $this->settings[ 'collective_invoice_span' ] ) {
+		// Keep cache local, otherwise everything is replaced by orders.
+		wp_cache_add_non_persistent_groups( 'orders' );
+		wp_cache_add_non_persistent_groups( 'order-items' );
+
+		switch ( $this->settings['collective_invoice_span'] ) {
 			case 'per_week':
-				$invoice_from_date = strtotime( "-1 week" );
+				$invoice_from_date = strtotime( '-1 week' );
 				break;
 			case 'per_month':
-				$invoice_from_date = strtotime( "-1 month" );
+				$invoice_from_date = strtotime( '-1 month' );
 				break;
 			default:
 				$invoice_from_date = 0;
 				break;
 		}
-		$args = array(
-			'fields'      => 'ids',
+
+		$order_args = array(
+			// TODO: HPOS.
+			'return'      => 'ids',
 			'numberposts' => -1,
 			'orderby'     => 'ID',
 			'order'       => 'ASC',
-			'post_type'   => 'shop_order',
-			'post_status' => 'wc-completed',
+			'status'      => 'wc-completed',
 			'meta_query'  => array(
 				'relation' => 'AND',
 				array(
@@ -220,30 +221,26 @@ class RMA_WC_Collective_Invoicing {
 		);
 
 		if ( ! empty( $customers ) ) {
-			$args['meta_query'][] = array(
-				'key'     => '_customer_user',
-				'compare' => 'IN',
-				'value'   => $customers,
-			);
+					$order_args['customer_id'] = $customers;
 		}
-		
-		$orders_no_invoice = get_posts( $args );
+
+		$orders_no_invoice = wc_get_orders( $order_args );
 
 		$cumulated_orders_by_customer_id = array();
-		
+
 		// loop through orders and create an associative array with orders for customer
 		foreach ( $orders_no_invoice as $key => $order_id ) {
-			
+
 			// get values
 			$order          = wc_get_order( $order_id );
-            $order_id       = $order->get_id();
-            $user_id        = $order->get_user_id( $order_id );
+			$order_id       = $order->get_id();
+			$user_id        = $order->get_user_id( $order_id );
 			$paid_date      = $order->get_date_completed( $order_id );
-            $tax_included   = $order->get_prices_include_tax( $order_id );
-            $payment_method = $order->get_payment_method( $order_id );
+			$tax_included   = $order->get_prices_include_tax( $order_id );
+			$payment_method = $order->get_payment_method( $order_id );
 
 			// is paid date in the range for invoicing?
-			if( strtotime( $paid_date ) > $invoice_from_date ) {
+			if ( strtotime( $paid_date ) > $invoice_from_date ) {
 
 				// prepare arrays to merge
 				$a = isset( $cumulated_orders_by_customer_id[ $user_id ][ $tax_included ? 'tax' : 'no_tax' ][ $payment_method ] ) && is_array( $cumulated_orders_by_customer_id[ $user_id ][ $tax_included ? 'tax' : 'no_tax' ][ $payment_method ] ) ? $cumulated_orders_by_customer_id[ $user_id ][ $tax_included ? 'tax' : 'no_tax' ][ $payment_method ] : array();
@@ -253,11 +250,11 @@ class RMA_WC_Collective_Invoicing {
 				$cumulated_orders_by_customer_id[ $user_id ][ $tax_included ? 'tax' : 'no_tax' ][ $payment_method ] = array_merge( $a, $b );
 
 			}
-			wp_cache_flush();
+			// Delete the order cache once the order is processed, in order to keep memory consumption lower.
+			RMA_WC_API::delete_order_cache( $order );
 		}
 
 		return $cumulated_orders_by_customer_id;
-
 	}
 
 	/**
@@ -284,25 +281,24 @@ class RMA_WC_Collective_Invoicing {
 	 */
 	public function create_collective_invoice( bool $force = false, bool $display = false, $description = false, $customers = array() ): array {
 		// reset array
-				$order_date_created = array();
+		$order_date_created = array();
 		$created_invoices   = array();
 		$display_invoices   = array();
 
 		// get the timestamp with the current date, but without time
-		$current_date = strtotime(date('Y-m-d', time() ) );
+		$current_date = strtotime( date( 'Y-m-d', time() ) );
 
 		// if we do not have to create collective invoices today
-		if ( false === $force && $current_date !== $this->settings[ 'collective_invoice_next_date_ts' ] ) {
+		if ( false === $force && $current_date !== $this->settings['collective_invoice_next_date_ts'] ) {
 			// return the empty array
 			return $created_invoices;
 		}
 
 		// get settings
-		$settings         = get_option( 'wc_rma_settings' );
-		
+		$settings = get_option( 'wc_rma_settings' );
+
 		// get all orders with no invoice
 		$not_invoiced_orders = self::get_not_invoiced_orders( $customers );
-		wp_cache_flush();
 
 		$invoice = new RMA_WC_API();
 
@@ -346,17 +342,17 @@ class RMA_WC_Collective_Invoicing {
 					$order_details          = array();
 					$invoice_id             = '';
 
-			
 					foreach ( $order_ids as $order_id ) {
 
-								// Only needed to build the description string.
+						// Only needed to build the description string.
 						if ( false === $description ) {
 							$order                = wc_get_order( $order_id );
 							$order_date_created[] = $order->get_date_created()->date( 'U' ); // get order date created as unix timestamp
+							RMA_WC_API::delete_order_cache( $order );
 							unset( $order );
-													}
-		
-						if( $first_order ) {
+						}
+
+						if ( $first_order ) {
 
 							// remove flag for first payment method
 							$first_order = false;
@@ -365,21 +361,20 @@ class RMA_WC_Collective_Invoicing {
 							$order_details = $invoice->get_wc_order_details( $order_id );
 
 							// create the invoice id based on the first order id
-							$invoice_id = RMA_INVOICE_PREFIX . str_pad( $order_id, max(intval(RMA_INVOICE_DIGITS) - strlen(RMA_INVOICE_PREFIX ), 0 ), '0', STR_PAD_LEFT );
+							$invoice_id = RMA_INVOICE_PREFIX . str_pad( $order_id, max( intval( RMA_INVOICE_DIGITS ) - strlen( RMA_INVOICE_PREFIX ), 0 ), '0', STR_PAD_LEFT );
 
 						}
 
 						// add products to order
 						$order_details_products = $invoice->get_order_details_products( $order_id, $order_details_products );
-		
+
 						// add shipping costs to order
 						$order_details_products = $invoice->get_order_details_shipping_costs( $order_id, $order_details_products );
-		
+
 					}
 
 					// make sure we have an invoice header with values
-					if( 0 < count( $order_details ) ) {
-			
+					if ( 0 < count( $order_details ) ) {
 
 						// create description
 						if ( false === $description ) {
@@ -388,31 +383,30 @@ class RMA_WC_Collective_Invoicing {
 							$description               = str_replace( '[period]', $collective_invoice_period, $settings['rma-collective-invoice-description'] ?? '' );
 						}
 						// collect invoice data
- 						$data = $invoice->get_invoice_data( $order_details, $order_details_products, $invoice_id, '', $description );
+						$data = $invoice->get_invoice_data( $order_details, $order_details_products, $invoice_id, '', $description );
 
 						if ( ! $display ) {
 							// create xml and send invoice to Run My Accounts
 							$result = $invoice->create_xml_content( $data, $order_ids, true );
 
-							if( false != $result ) {
+							if ( false != $result ) {
 
 								$created_invoices[] = $invoice_id;
 
 							}
 						} else {
 
-							$first_order = wc_get_order( $order_ids[0] );
-							$display_invoices[$invoice_id] = array(
-								'data' => $data,
-								'user_id' => $first_order->get_customer_id(),
+							$first_order                     = wc_get_order( $order_ids[0] );
+							$display_invoices[ $invoice_id ] = array(
+								'data'      => $data,
+								'user_id'   => $first_order->get_customer_id(),
 								'order_ids' => $order_ids,
 							);
-						};
-
-
+						}
 					}
 
-					wp_cache_flush();
+					// Delete the order cache once the order is processed.
+					RMA_WC_API::delete_order_cache( $first_order );
 
 				}
 			}
@@ -425,29 +419,28 @@ class RMA_WC_Collective_Invoicing {
 		}
 
 		// were invoices created, and we should send an email?
-		if( 0 < count( $created_invoices ) && SENDLOGEMAIL ) {
+		if ( 0 < count( $created_invoices ) && SENDLOGEMAIL ) {
 
-			$headers = array('Content-Type: text/html; charset=UTF-8');
-			$email_content = sprintf( esc_html_x('The following collective invoices were sent: %s', 'email', 'rma-wc'), implode(', ', $created_invoices ) );
-			wp_mail( LOGEMAIL, esc_html_x( 'Collective invoices were sent', 'email', 'rma-wc' ), $email_content, $headers);
+			$headers       = array( 'Content-Type: text/html; charset=UTF-8' );
+			$email_content = sprintf( esc_html_x( 'The following collective invoices were sent: %s', 'email', 'rma-wc' ), implode( ', ', $created_invoices ) );
+			wp_mail( LOGEMAIL, esc_html_x( 'Collective invoices were sent', 'email', 'rma-wc' ), $email_content, $headers );
 
 		}
 
 		// get parameters for next invoice date
-		$period  = $this->settings[ 'collective_invoice_period' ];
-		$weekday = $this->settings[ 'collective_invoice_weekday' ];
+		$period  = $this->settings['collective_invoice_period'];
+		$weekday = $this->settings['collective_invoice_weekday'];
 		$dates   = self::get_next_invoice_date( $period, $weekday );
 
 		// set the next invoice date
-		if( !empty( $dates ) ) {
+		if ( ! empty( $dates ) ) {
 
-			$this->settings[ 'collective_invoice_next_date_ts' ] = strtotime(date('Y-m-d', $dates[ 'next_date_ts' ] ) );
+			$this->settings['collective_invoice_next_date_ts'] = strtotime( date( 'Y-m-d', $dates['next_date_ts'] ) );
 			update_option( 'wc_rma_settings_collective_invoice', $this->settings );
 
 		}
 
 		return $created_invoices;
-
 	}
 
 	/**
@@ -457,19 +450,19 @@ class RMA_WC_Collective_Invoicing {
 	 */
 	public function maybe_create_scheduled_event() {
 		if ( ! wp_next_scheduled( 'run_my_accounts_collective_invoice' ) ) {
-			wp_schedule_event( time() + HOUR_IN_SECONDS , 'daily', 'run_my_accounts_collective_invoice' );
+			wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', 'run_my_accounts_collective_invoice' );
 		}
 	}
 
 	/**
 	 * Add order ID to description.
 	 */
-	public function add_order_id_to_description( array $part, ?int $item_id ) :array {
+	public function add_order_id_to_description( array $part, ?int $item_id ): array {
 
-		$order_id = wc_get_order_id_by_order_item_id( $item_id );
-		$order = wc_get_order( $order_id );
-		$order_item = $order->get_item( $item_id );
-		$part['order_id'] = $order_id;
+		$order_id            = wc_get_order_id_by_order_item_id( $item_id );
+		$order               = wc_get_order( $order_id );
+		$order_item          = $order->get_item( $item_id );
+		$part['order_id']    = $order_id;
 		$part['description'] = '#' . $order_id . ' ' . $order_item->get_name();
 		return $part;
 	}

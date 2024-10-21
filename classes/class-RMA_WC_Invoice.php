@@ -1,4 +1,5 @@
 <?php
+use Automattic\WooCommerce\Utilities\OrderUtil;
 
 if ( ! defined('ABSPATH')) exit;
 
@@ -12,7 +13,7 @@ class RMA_WC_Invoice {
     private $settings;
 
     public function __construct() {
-        $this->init_hooks();
+        add_action( 'admin_init', array($this, 'init_hooks'));
 
     }
 
@@ -25,15 +26,31 @@ class RMA_WC_Invoice {
                 add_action( 'init', array( $this, 'maybe_create_schedule_update_invoice_status_event' ) );
                 add_action( 'update_invoice_status', array( $this, 'hourly_update_invoice_status' ) );
 
-                // add status column to order page
-                add_filter( 'manage_edit-shop_order_columns', array( $this, 'add_status_column_to_order_table' ) , 20);
-                add_action( 'manage_shop_order_posts_custom_column', array( $this, 'add_status_value_to_order_table_row' ) );
 
-                // allow filtering for order invoice status
-                add_action( 'woocommerce_order_list_table_restrict_manage_orders', array( $this, 'filter_status_column' ), 25, 2 );
-	            add_action( 'restrict_manage_posts', array( $this, 'filter_status_column' ), 25, 2 );
-	            add_action( 'woocommerce_order_data_store_cpt_get_orders_query', array( $this, 'filter_orders_hpos' ), 25, 2 ); // HPOS.
-	            add_action( 'pre_get_posts', array( $this, 'filter_orders_legacy' ), 25, 2 ); // Legacy.
+
+                // Add invoice column to order list.
+                if ( ! OrderUtil::custom_orders_table_usage_is_enabled() ) {
+
+                    // add status column to order page
+                    add_filter( 'manage_edit-shop_order_columns', array( $this, 'add_status_column_to_order_table' ) , 20);
+                    add_action( 'manage_shop_order_posts_custom_column', array( $this, 'add_status_value_to_order_table_row' ), 10, 2 );
+
+                    // allow filtering for order invoice status
+                    add_action( 'restrict_manage_posts', array( $this, 'filter_status_column' ), 25, 2 );
+                    add_action( 'pre_get_posts', array( $this, 'filter_orders_legacy' ), 25, 2 ); // Legacy.
+
+                } else {
+                    // HPOS Hooks.
+
+                    // add status column to order page
+                    add_filter( 'manage_woocommerce_page_wc-orders_columns', array( $this, 'add_status_column_to_order_table' ) , 20);
+                    add_action( 'manage_woocommerce_page_wc-orders_custom_column', array( $this, 'add_status_value_to_order_table_row' ), 10, 2 );
+
+                    // allow filtering for order invoice status
+                    add_action( 'woocommerce_order_list_table_prepare_items_query_args', array( $this, 'filter_orders_hpos' ), 25, 2 ); // HPOS.
+                    add_action( 'woocommerce_order_list_table_restrict_manage_orders', array( $this, 'filter_status_column' ), 25, 2 );
+
+                }
 
                 // User profile invoice info
 
@@ -136,7 +153,7 @@ class RMA_WC_Invoice {
             return $columns;
         }
 
-        public function add_status_value_to_order_table_row( $column ) {
+        public function add_status_value_to_order_table_row( $column, $order ) {
 
             global $post;
 
@@ -145,11 +162,11 @@ class RMA_WC_Invoice {
                 case 'rma_invoice_status' :
                     echo '<mark class="order-status" title="';
                     echo __( 'Last updated: ', 'rma-wc' );
-                    echo wp_date( get_option( 'date_format' ),strtotime( get_post_meta( $post->ID, '_rma_invoice_status_timestamp', true ) ) );
+                    echo wp_date( get_option( 'date_format' ),strtotime( $order->get_meta('_rma_invoice_status_timestamp', true ) ) );
                     echo ' ';
-                    echo wp_date( get_option( 'time_format' ),strtotime( get_post_meta( $post->ID, '_rma_invoice_status_timestamp', true ) ) );
+                    echo wp_date( get_option( 'time_format' ),strtotime( $order->get_meta( '_rma_invoice_status_timestamp', true ) ) );
                     echo '"><span>';
-                    echo get_post_meta( $post->ID, '_rma_invoice_status', true );
+                    echo $order->get_meta( '_rma_invoice_status', true );
                     echo "</span></mark>";
                     
                 default:
@@ -182,25 +199,25 @@ class RMA_WC_Invoice {
             if ( 'any' === $status_field ) {
                 return $query_args;
             }
-
-            if ( 'empty' === $status_field ) {   
-                $query_args[ 'meta_query' ] = array(
+            $meta_query = $query_args['meta_query'] ?? array();
+            if ( 'empty' === $status_field ) {
+                $meta_query[] = array(
                     array(
                         'key'   => '_rma_invoice_status',
                         'value' => '',
+                        'compare' => 'NOT EXISTS',
                     ),
                 );
             }
 
-            if ( 'invoiced' === $status_field ) {   
-                $query_args[ 'meta_query' ] = array(
-                    array(
+            if ( 'invoiced' === $status_field ) {
+                $meta_query[] = array(
                         'key'   => '_rma_invoice_status',
                         'value' => '',
                         'compare' => '!=',
-                    ),
                 );
             }
+            $query_args['meta_query'] = $meta_query;
 
             
             return $query_args;

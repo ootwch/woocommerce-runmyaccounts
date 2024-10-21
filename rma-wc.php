@@ -31,6 +31,17 @@ if ( !defined('ABSPATH' ) ) exit;
 if (!defined('RMA_WC_PFAD')) { define('RMA_WC_PFAD', plugin_dir_path(__FILE__)); }
 if (!defined('RMA_WC_LOG_TABLE')) { define('RMA_WC_LOG_TABLE', 'rma_wc_log'); }
 
+
+// Declare High Performance Table Support.
+add_action(
+	'before_woocommerce_init',
+	function() {
+		if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
+			\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
+		}
+	}
+);
+
 /**
  * Class autoload for plugin classes which contains RMA in the class name
  *
@@ -83,14 +94,4 @@ $s = new RMA_WC_Invoice();
 
 // RMA Collective Invoice Dashboard
 new RMA_WC_Admin_Collective_Invoice();
-
-// Declare High Performance Table Support.
-add_action(
-	'before_woocommerce_init',
-	function() {
-		if ( class_exists( \Automattic\WooCommerce\Utilities\FeaturesUtil::class ) ) {
-			\Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
-		}
-	}
-);
 

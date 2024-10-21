@@ -9,6 +9,8 @@
  * @since       1.0  
  */
 
+use Automattic\WooCommerce\Utilities\OrderUtil;
+
 if ( !defined('ABSPATH' ) ) exit;
 
 if ( !class_exists('RMA_WC_Backend_Abstract') ) {
@@ -124,14 +126,33 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
                 add_action( 'woocommerce_order_actions', array( $this, 'order_meta_box_action' ) );
                 add_action( 'woocommerce_order_action_create_rma_invoice', array( $this, 'process_order_meta_box_action' ) );
 
-                // add invoice column to order page and make it searchable
-                add_filter( 'manage_edit-shop_order_columns', array( $this, 'add_column_to_order_table' ) );
-                add_action( 'manage_shop_order_posts_custom_column', array( $this, 'add_value_to_order_table_row' ) );
-                add_filter( 'woocommerce_shop_order_search_fields', array( $this, 'search_column' ), 10, 1 );
+               
+                // Add invoice column to order list.
+                if ( ! OrderUtil::custom_orders_table_usage_is_enabled() ) {
+                    
+                    // add invoice column to order page and make it searchable
+                    add_filter( 'manage_edit-shop_order_columns', array( $this, 'add_column_to_order_table' ) );
+                    add_action( 'manage_shop_order_posts_custom_column', array( $this, 'add_value_to_order_table_row' ), 10, 2 );
+                    add_filter( 'woocommerce_shop_order_search_fields', array( $this, 'search_column' ), 10, 1 );
 
-                // add bulk action to order page
-                add_filter( 'bulk_actions-edit-shop_order', array( $this, 'create_invoice_bulk_actions_edit_product'), 20, 1 );
-                add_filter( 'handle_bulk_actions-edit-shop_order', array( $this, 'create_invoice_handle_bulk_action_edit_shop_order'), 10, 3 );
+                    // add bulk action to order page
+                    add_filter( 'bulk_actions-edit-shop_order', array( $this, 'create_invoice_bulk_actions_edit_product'), 20, 1 );
+                    add_filter( 'handle_bulk_actions-edit-shop_order', array( $this, 'create_invoice_handle_bulk_action_edit_shop_order'), 10, 3 );
+
+                } else {
+                    // HPOS Hooks.
+
+                    // add invoice column to order page and make it searchable
+                    add_filter( 'manage_woocommerce_page_wc-orders_columns', array( $this, 'add_column_to_order_table' ) );
+                    add_action( 'manage_woocommerce_page_wc-orders_custom_column', array( $this, 'add_value_to_order_table_row' ), 10, 2 );
+                    add_filter( 'woocommerce_order_table_search_query_meta_keys', array( $this, 'search_column' ), 10, 1 );
+                    
+                    // add bulk action to order page
+                    add_filter( 'bulk_actions-woocommerce_page_wc-orders', array( $this, 'create_invoice_bulk_actions_edit_product'), 20, 1 );
+                    add_filter( 'handle_bulk_actions-woocommerce_page_wc-orders', array( $this, 'create_invoice_handle_bulk_action_edit_shop_order'), 10, 3 );
+
+                }
+
                 add_action( 'admin_notices', array( $this, 'create_invoice_bulk_action_admin_notice' ) );
 
             }
@@ -191,8 +212,9 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
             $RMA_WC_API = new RMA_WC_API();
 
             foreach ( $post_ids as $post_id ) {
+                $order = wc_get_order( $post_id );
 
-                $invoice_number = get_post_meta( $post_id, '_rma_invoice' );
+                $invoice_number = $order->get_meta( '_rma_invoice' );
 
                 // order has already an invoice
                 if( !empty( $invoice_number ) ) {
@@ -300,13 +322,13 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
             return $columns;
         }
 
-        public function add_value_to_order_table_row( $column ) {
+        public function add_value_to_order_table_row( $column, $order ) {
 
             global $post;
 
             switch ( $column ) {
                 case 'rma_invoice' :
-                    echo get_post_meta( $post->ID, '_rma_invoice', true );
+                    echo esc_attr( $order->get_meta( '_rma_invoice', true ) );
                 default:
             }
 

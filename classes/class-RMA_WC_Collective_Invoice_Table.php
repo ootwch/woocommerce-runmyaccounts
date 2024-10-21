@@ -754,7 +754,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		$this->single_row_columns( $item );
 		$this->display_order_rows( $item );
 		echo '</tr>';
-		wp_cache_flush();
 	}
 
 	/**

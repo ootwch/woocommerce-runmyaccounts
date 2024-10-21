@@ -79,8 +79,9 @@ class RMA_WC_Payment {
         // continue only if an order_id is available
         if( !$this->order_id ) return false;
 
+        $order = wc_get_order( $this->order_id );
         // get the Run My Accounts invoice number
-        $this->invoice = get_post_meta( $this->order_id, '_rma_invoice', true );
+        $this->invoice = $order->get_meta( '_rma_invoice', true );
 
         $data = self::get_payment_details();
         $url  = RMA_WC_API::get_caller_url() . RMA_MANDANT . '/invoices/' . $this->invoice . '/payments?api_key=' . RMA_APIKEY;

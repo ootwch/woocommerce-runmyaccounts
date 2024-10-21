@@ -1333,7 +1333,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 				'customernumber'    => $customer_prefix . $order_id,
 				'name'              => ( $is_company ? $order->get_billing_company() : $order->get_billing_first_name() . ' ' . $order->get_billing_last_name() ),
 				'created'           => date( 'Y-m-d' ) . 'T00:00:00+01:00',
-				'salutation'        => ( 1 == get_post_meta( $order_id, '_billing_title', true ) ? __( 'Mr.', 'rma-wc' ) : __( 'Ms.', 'rma-wc' ) ),
+				'salutation'        => ( 1 == $order->get_meta( '_billing_title', true ) ? __( 'Mr.', 'rma-wc' ) : __( 'Ms.', 'rma-wc' ) ),
 				'firstname'         => $order->get_billing_first_name(),
 				'lastname'          => $order->get_billing_last_name(),
 				'address1'          => $order->get_billing_address_1(),
@@ -1376,7 +1376,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 			$order_payment_method = $order->get_payment_method();
 
 			// if order is done without user account
-			if ( 0 == get_post_meta( $order_id, '_customer_user', true ) ) {
+			if ( 0 == $order->get_meta( '_customer_user', true ) ) {
 
 				$settings = get_option( 'wc_rma_settings' );
 
@@ -1435,7 +1435,7 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 				$order_details['notes'] = preg_replace( '/<br(\s+)?\/?>/i', "\n", $order->get_formatted_shipping_address() );
 
 			}
-
+			
 			return $order_details;
 
 		}
@@ -1472,7 +1472,6 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 
 				}
 			}
-
 			return $order_details_products;
 
 		}
@@ -1625,10 +1624,13 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 					$note  = sprintf( esc_html_x( '%1$s %2$s created in Run my Accounts', 'Order Note', 'rma-wc' ), $invoice_type, $invoice_number );
 					$order->add_order_note( $note );
 
-					update_post_meta( $order_id, '_rma_invoice', $invoice_number );
-					update_post_meta( $order_id, '_rma_invoice_status', sanitize_text_field( __( 'NEW', 'rma-wc' ) ) );
-					update_post_meta( $order_id, '_rma_invoice_status_timestamp', current_datetime()->format( 'c' ) );
+					$order->update_meta_data( '_rma_invoice', $invoice_number );
+					$order->update_meta_data( '_rma_invoice_status', sanitize_text_field( __( 'NEW', 'rma-wc' ) ) );
+					$order->update_meta_data( '_rma_invoice_status_timestamp', current_datetime()->format( 'c' ) );
+					$order->save_meta_data();
 
+					// Delete the order cache once the order is processed.
+					self::delete_order_cache( $order );
 					unset( $order );
 
 				}
@@ -1657,7 +1659,8 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 					);
 
 					self::write_log( $log_values );
-
+					// Delete the order cache once the order is processed.
+					self::delete_order_cache( $order );
 					unset( $order );
 
 				}
@@ -1955,6 +1958,19 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 			}
 
 			return true;
+		}
+
+		/**
+		 * Delete cache for order and order-item
+		 *
+		 * @param \WC_Order $order The order.
+		 * @return void
+		 */
+		public static function delete_order_cache( $order ) {
+			foreach ( $order->get_items() as $item ) {
+				wp_cache_delete( 'item-' . $item->get_id(), 'order-items' );
+			}
+			wp_cache_delete( 'order-items-' . $order->get_id(), 'orders' );
 		}
 
 	}
