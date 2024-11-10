@@ -325,9 +325,10 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
                         'option_group' => $this->option_group_general,
                         'id'           => $id,
                         'value'        => isset( $this->options_general[ $id ] ) ? $this->options_general[ $id ] : '',
-                )
-            );
-        }
+                    )
+                );
+            }
+        do_action( 'rma-settings-' . $section, $this );
         }
 
 
@@ -441,7 +442,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
                     'description'  => esc_html__('Description of the collective invoice in Run My Accounts. Possible variable: [period]', 'rma-wc' )
                 )
             );
-
+            do_action( 'rma-settings-' . $section, $this );
         }
 
         /**
@@ -514,7 +515,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
                     'description'  => esc_html__('Please select the payment options you want to exclude?', 'rma-wc' ),
                 )
             );
-
+            do_action( 'rma-settings-' . $section, $this );
         }
 
         /**
@@ -602,7 +603,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
                        'id'           => $id
                 )
             );
-
+            do_action( 'rma-settings-' . $section, $this );
         }
 
         /**
@@ -665,7 +666,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
                     'description'  => esc_html__('If you use Redq Rental and Booking, this is the article that is used for the rental cancelation booking.', 'rma-wc' )
                 )
             );
-
+            do_action( 'rma-settings-' . $section, $this );
         }
 
         /**
@@ -712,7 +713,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
                 )
             );
 
-
+            do_action( 'rma-settings-' . $section, $this );
         }
 
         /**
@@ -782,7 +783,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
                 )
             );
 
-
+            do_action( 'rma-settings-' . $section, $this );
         }
 
         /**
@@ -818,7 +819,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
                 )
             );
-
+            do_action( 'rma-settings-' . $section, $this );
         }
 
         public function options_accounting_gateways() {
@@ -851,7 +852,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
                 );
 
             }
-
+            do_action( 'rma-settings-' . $section, $this );
         }
 
         public function options_payment_gateways() {
@@ -887,7 +888,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
                 );
 
             }
-
+            do_action( 'rma-settings-' . $section, $this );
         }
 
         public function options_collective_invoice() {
@@ -987,7 +988,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
                 )
             );
-
+            do_action( 'rma-settings-' . $section, $this );
         }
 
         public function section_info_accounting() {
