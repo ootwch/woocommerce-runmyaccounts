@@ -15,18 +15,18 @@ defined( 'ABSPATH' ) || exit;
 
 $current_page = (int) basename( wp_parse_url( $_SERVER['REQUEST_URI'], PHP_URL_PATH ) ) ?: 1; // phpcs:ignore
 
-if ( false === $args['invoices'] ){
+if ( false === $args['invoices'] ) {
 	echo '<div><strong>Invoices could not be loaded - perhaps the bookkeeping system is under maintenance.</strong></div>';
 }
 
 $invoices     = $args['invoices']['invoice'];
 $has_invoices = ! empty( $invoices );
 
-echo '<div><strong>Customer Name:</strong> ' . esc_html( $args['customer_info']['name'] ) . '</div>';
-echo '<div><strong>Invoicing ID:</strong> ' . esc_html( $args['customer_info']['customernumber'] ) . '</div>';
-echo '<div><strong>Invoicing Email:</strong> ' . esc_html( $args['customer_info']['email'] ) . '</div>';
+echo '<div><strong>' . esc_html__( 'Customer Name', 'rma-wc' ) . ':</strong> ' . esc_html( $args['customer_info']['name'] ) . '</div>';
+echo '<div><strong>' . esc_html__( 'Invoicing ID', 'rma-wc' ) . ':</strong> ' . esc_html( $args['customer_info']['customernumber'] ) . '</div>';
+echo '<div><strong>' . esc_html__( 'Invoicing Email', 'rma-wc' ) . ':</strong> ' . esc_html( $args['customer_info']['email'] ) . '</div>';
 
-echo '<div><strong>Invoicing Address:</strong> ';
+echo '<div><strong>' . esc_html__( 'Invoicing Address', 'rma-wc' ) . ':</strong> ';
 $address_line = empty( $args['customer_info']['address']['addressline'] ) ? '' : $args['customer_info']['address']['addressline'];
 echo esc_html( $address_line ) . ';';
 if ( ! empty( $args['customer_info']['address']['additionalAddressline'] ) ) {
