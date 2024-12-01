@@ -434,7 +434,11 @@ if ( ! class_exists( 'RMA_WC_API' ) ) {
 				} else {
 					$response = (array) $response['http_response'];
 					foreach ( $response as $object ) {
-						$message .= ' ' . $object->url;
+						if ( null !== $object ) {
+							$message .= ' ' . $object->url;
+						} else {
+							$message .= ' object is null';
+						}
 						break;
 					}
 				}
