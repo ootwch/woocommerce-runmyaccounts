@@ -38,7 +38,7 @@ if ( ! class_exists('RMA_WC_Frontend' ) ) {
              * add_action() WP Since: 1.2.0
              * https://developer.wordpress.org/reference/functions/add_action/
              */
-            add_action( 'plugins_loaded', array( $this, 'plugins_loaded' ) );
+            add_action( 'init', array( $this, 'plugins_loaded' ) );
 
             if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
 
