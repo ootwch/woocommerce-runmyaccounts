@@ -3,7 +3,7 @@
 * Tags: Run my Accounts, WooCommerce, Billing
 * Requires at least: 6.2
 * Tested up to: 6.8
-* Stable tag: 1.8.1
+* Stable tag: 1.9.0
 * Requires PHP: 7.2
 * License: GPLv2
 * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -44,15 +44,18 @@ Please send a request to the Openstream Internet Solutions. We provide customiza
 
 == Screenshots ==
 1. General settings.
-2. Settings for dedicated receivable account for each payment gateway.
-3. Settings on user page.
+2. Settings for a dedicated receivable account for each payment gateway.
+3. Settings on the user page.
 
 == Known issues ==
-* Discount codes does not be reflected on the invoice.
+* Discount codes do not be reflected on the invoice.
 * Credits are not created in Run My Accounts.
 * The collective invoice only works with available products. If a product was deleted between the order and the invoice, the product cannot be included in the invoice anymore.
 
 == Changelog ==
+= 1.9.0 =
+* Added the option to select separately whether the prices transferred to Run My Accounts include VAT or not.
+
 = 1.8.1 =
 * Added compatibility with price rules plugins
 * Compatibility - tested up to WooCommerce 9.8

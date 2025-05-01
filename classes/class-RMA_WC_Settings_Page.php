@@ -46,6 +46,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 			add_action( 'admin_enqueue_scripts', array( $this, 'admin_enqueue' ) );
 
 			add_action( 'admin_menu', array( $this, 'add_plugin_page' ) );
+
 		}
 
 		public function admin_enqueue( $hook ) {
@@ -373,6 +374,26 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 				)
 			);
 
+			$id = 'rma-tax-transfer';
+			add_settings_field(
+				$id,
+				esc_html__( 'Price transfer with tax', 'run-my-accounts-for-woocommerce'),
+				array( $this, 'option_select_cb'),
+				$this->option_page_general,
+				$section,
+				array(
+					'option_group'    => $this->option_group_general,
+					'id'              => $id,
+					'options'         => $this->options_general,
+					'select_options'  => array(
+						''            => esc_html__( 'WooCommerce settings','run-my-accounts-for-woocommerce') ,
+						'net'         => esc_html__( 'Item prices net (excl. VAT)','run-my-accounts-for-woocommerce' ),
+						'gross'       => esc_html__( 'Item prices gross (incl. VAT)','run-my-accounts-for-woocommerce' ),
+					),
+					'description'     => esc_html__( 'How should the item prices be transferred in relation to VAT? The WooCommerce settings are related to WooCommerce > Settings > Tax > Tax options.', 'run-my-accounts-for-woocommerce' )
+				)
+			);
+
 		}
 
 		/**
@@ -407,7 +428,6 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 					),
 					'class'        => 'payment-trigger',
 					'description'  => esc_html__('When should the payment be booked in Run My Accounts', 'run-my-accounts-for-woocommerce' ),
-
 				)
 			);
 
@@ -1107,14 +1127,15 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 		 * @param array $args
 		 */
 		public function option_select_cb( $args ) {
-			$option_group   = (isset($args['option_group'])) ? $args['option_group'] : '';
-			$id             = (isset($args['id'])) ? $args['id'] : '';
-			$options        = (isset($args['options'])) ? $args['options'] : '';
-			$select_options = (isset($args['select_options'])) ? $args['select_options'] : array();
-			$description    = (isset($args['description'])) ? $args['description'] : '';
-			$class          = (isset($args['class'])) ? $args['class'] : '';
+			$option_group   = ( isset( $args[ 'option_group'] ) ) ? $args[ 'option_group' ] : '';
+			$id             = ( isset( $args[ 'id'] ) ) ? $args[ 'id' ] : '';
+			$options        = ( isset( $args[ 'options'] ) ) ? $args[ 'options' ] : '';
+			$select_options = ( isset( $args[ 'select_options'] ) ) ? $args[ 'select_options' ] : array();
+			$description    = ( isset( $args[ 'description'] ) ) ? $args[ 'description' ] : '';
+			$class          = ( isset( $args[ 'class'] ) ) ? $args[ 'class' ] : '';
+			$style          = ( isset( $args[ 'style'] ) ) ? $args[ 'style' ] : '';
 
-			echo '<select name="' . $option_group . '[' . $id . ']"' . ( !empty( $class) ? 'id="'. $id .'" class="' . $class . '"' : '' ) . '>';
+			echo '<select name="' . $option_group . '[' . $id . ']"' . ( !empty( $id) ? 'id="'. $id .'"' : '' ) . ( !empty( $class) ? ' class="' . $class . '"' : '' ) . ( !empty( $style) ? ' style="' . $style . '"' : '' ) . '>';
 
 			foreach ( $select_options as $value => $text ) {
 				printf(

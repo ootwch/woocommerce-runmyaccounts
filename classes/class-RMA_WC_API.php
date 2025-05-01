@@ -489,7 +489,22 @@ if ( !class_exists('RMA_WC_API') ) {
 			$option_accounting    = get_option( 'wc_rma_settings_accounting' );
 			$order_payment_method = $order->get_payment_method();
 
-			// if order is done without user account
+			$option_billing       = get_option( 'wc_rma_settings' );
+
+			// transfer price net
+			if( isset( $option_billing[ 'rma-tax-transfer' ] ) && 'net' == $option_billing[ 'rma-tax-transfer' ] ) {
+				$tax_included = 'false';
+			}
+			// transfer price gross
+			elseif( isset( $option_billing[ 'rma-tax-transfer' ] ) && 'gross' == $option_billing[ 'rma-tax-transfer' ] ) {
+				$tax_included = 'true';
+			}
+			// get the settings from WooCommerce
+			else {
+				$tax_included = $order->get_prices_include_tax() ? 'true' : 'false';
+			}
+
+			// if the order is done without a user account
 			if ( 0 == $order->get_meta( '_customer_user', true ) ) {
 
 				$settings = get_option('wc_rma_settings');
@@ -498,7 +513,7 @@ if ( !class_exists('RMA_WC_API') ) {
 
 					$rma_customer_id = (new RMA_WC_API)->create_rma_customer('order', $order_id );
 
-					if ( false == $rma_customer_id ) {
+					if ( ! $rma_customer_id) {
 
 						$log_values = array(
 							'status' => 'error',
@@ -516,22 +531,22 @@ if ( !class_exists('RMA_WC_API') ) {
 				else {
 
 					// customer id is equal to predefined catch all guest account
-					$rma_customer_id         = $settings['rma-guest-catch-all'];
+					$rma_customer_id = $settings[ 'rma-guest-catch-all' ];
 
 				}
 
 			}
-			// ...or with user account
+			// ...or with a user account
 			else {
 
-				$rma_customer_id             = get_user_meta( $order->get_customer_id(), 'rma_customer', true );
+				$rma_customer_id = get_user_meta( $order->get_customer_id(), 'rma_customer', true );
 
 			}
 
 			// Set order header
 			$order_details[ 'currency' ]       = $order->get_currency();
 			$order_details[ 'orderdate' ]      = wc_format_datetime( $order->get_date_created(),'d.m.Y' );
-			$order_details[ 'taxincluded' ]    = $order->get_prices_include_tax() ? 'true' : 'false';
+			$order_details[ 'taxincluded' ]    = $tax_included;
 			$order_details[ 'customernumber' ] = $rma_customer_id;
 			$order_details[ 'ar_accno' ]       = isset( $option_accounting[ $order_payment_method ] ) && !empty( $option_accounting[ $order_payment_method ] ) ? $option_accounting[ $order_payment_method ] : '';
 			$order_details[ 'payment_accno' ]  = isset( $option_accounting[ $order_payment_method . '_payment_account' ] ) && !empty( $option_accounting[ $order_payment_method . '_payment_account' ] ) ? $option_accounting[ $order_payment_method . '_payment_account' ] : '' ;
