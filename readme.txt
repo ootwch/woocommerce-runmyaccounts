@@ -3,7 +3,7 @@
 * Tags: Run my Accounts, WooCommerce, Billing
 * Requires at least: 6.2
 * Tested up to: 6.8
-* Stable tag: 1.9.0
+* Stable tag: 1.9.1
 * Requires PHP: 7.2
 * License: GPLv2
 * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -53,8 +53,11 @@ Please send a request to the Openstream Internet Solutions. We provide customiza
 * The collective invoice only works with available products. If a product was deleted between the order and the invoice, the product cannot be included in the invoice anymore.
 
 == Changelog ==
+= 1.9.1 =
+* Fixed a fatal error that could occur on the log page
+
 = 1.9.0 =
-* Added the option to select separately whether the prices transferred to Run My Accounts include VAT or not.
+* Added the option to select separately whether the prices transferred to Run My Accounts include VAT or not
 
 = 1.8.1 =
 * Added compatibility with price rules plugins

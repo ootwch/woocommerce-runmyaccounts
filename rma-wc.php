@@ -10,7 +10,7 @@
  * @license              GPL-3.0-or-later
  *
  * Plugin Name:          Run my Accounts for WooCommerce
- * Version:              1.9.0
+ * Version:              1.9.1
  * Description:          This plug-in connects WooCommerce to <a href="https://www.runmyaccounts.ch/">Run my Accounts</a>. Create customers and invoices as soon as you get an order in your WooCommerce shop.
  * Requires at least:    6.2
  * Requires PHP:         7.2

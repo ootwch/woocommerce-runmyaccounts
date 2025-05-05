@@ -934,15 +934,6 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 				$this->option_page_log // Page
 			);
 
-			$id = 'rma-error-log';
-			add_settings_field(
-				$id,
-				'',
-				array( $this, 'output_log'), // general callback for checkbox
-				$this->option_page_log,
-				$section
-			);
-
 		}
 
 		public function section_info_log() {
