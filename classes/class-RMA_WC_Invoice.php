@@ -13,18 +13,22 @@ class RMA_WC_Invoice {
     private $settings;
 
     public function __construct() {
-        add_action( 'admin_init', array($this, 'init_hooks'));
+        add_action( 'admin_init', array($this, 'admin_init_hooks'));
+        add_action( 'init', array($this, 'init_hooks'));
 
+
+        // update order status once per hour and display it on the admin and user order overview.
+        add_action( 'init', array( $this, 'maybe_create_schedule_update_invoice_status_event' ) );
+        add_action( 'update_invoice_status', array( $this, 'hourly_update_invoice_status' ) );
     }
 
-    public function init_hooks() {
+
+
+    public function admin_init_hooks() {
 
                 // allow order query by invoice number.
                 add_filter( 'woocommerce_order_data_store_cpt_get_orders_query', array( $this, 'handle_invoice_number_query_var' ), 10, 2 );
 
-                // update order status once per hour and display it on the admin and user order overview
-                add_action( 'init', array( $this, 'maybe_create_schedule_update_invoice_status_event' ) );
-                add_action( 'update_invoice_status', array( $this, 'hourly_update_invoice_status' ) );
 
 
 
@@ -52,7 +56,14 @@ class RMA_WC_Invoice {
 
                 }
 
-                // User profile invoice info
+              
+
+
+    }
+
+    public function init_hooks() {
+
+          // User profile invoice info
 
                 // Add endpoints
                 add_action( 'init', array( $this, 'my_invoices_endpoint' ) );
