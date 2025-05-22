@@ -89,7 +89,7 @@ class RMA_WC_Invoice {
 	 */
 	public function check_invoices() {
         remove_action( 'woocommerce_init', array( $this, 'check_invoices' ) );
-		if ( is_user_logged_in() && isset( WC()->session ) && WC()->session->has_session() ) {
+		if ( did_action( 'woocommerce_init' ) === 1 && is_user_logged_in() && isset( WC()->session ) && WC()->session->has_session() ) {
 
 			$user_id         = get_current_user_id();
 			$rma_customer_id = get_user_meta( $user_id, 'rma_customer', true );
