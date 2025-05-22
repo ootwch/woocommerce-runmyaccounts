@@ -120,14 +120,19 @@ class RMA_WC_Invoice {
 
                 $warning_icon = '<span class="dashicons dashicons-warning"></span>';
 				$invoice_url  = wc_get_endpoint_url( 'invoices', '', get_permalink( get_option( 'woocommerce_myaccount_page_id' ) ) );
-				if ( ! empty( $overdue_invoices ) ) {
-					// translators: %s = url.
-					wc_add_notice( '<span color="red">' . $warning_icon . sprintf( __( 'You have overdue <a href="%s">invoices</a>', 'rma-wc' ), $invoice_url ) . '</span>', 'notice' );
+                // translators: %s = url.
+                $overdue_message = '<span color="red">' . $warning_icon . sprintf( __( 'You have overdue <a href="%s">invoices</a>', 'rma-wc' ), $invoice_url ) . '</span>';
+
+                // translators: %s = url.
+                $unpaid_message = sprintf( __( 'You have unpaid <a href="%s">invoices</a>', 'rma-wc' ), $invoice_url );
+                
+				if ( ! empty( $overdue_invoices ) && ! wc_has_notice( $overdue_message, 'notice' ) ) {
+					wc_add_notice( $overdue_message, 'notice' );
 					return 'overdue';
 
-				} elseif ( ! empty( $unpaid_invoices ) ) {
+				} elseif ( ! empty( $unpaid_invoices ) && ! wc_has_notice( $unpaid_message, 'notice' ) ) {
 					// translators: %s = url.
-					wc_add_notice( sprintf( __( 'You have unpaid <a href="%s">invoices</a>', 'rma-wc' ), $invoice_url ), 'notice' );
+					wc_add_notice( $unpaid_message, 'notice' );
 					return 'unpaid';
 
 				}
