@@ -16,6 +16,7 @@ class RMA_WC_Invoice {
         add_action( 'admin_init', array($this, 'admin_init_hooks'));
         add_action( 'init', array($this, 'init_hooks'));
 
+		add_action( 'woocommerce_init', array( $this, 'check_invoices' ) );
 
         // update order status once per hour and display it on the admin and user order overview.
         add_action( 'init', array( $this, 'maybe_create_schedule_update_invoice_status_event' ) );
@@ -66,7 +67,7 @@ class RMA_WC_Invoice {
           // User profile invoice info
 
                 // Add endpoints
-                add_action( 'init', array( $this, 'my_invoices_endpoint' ) );
+				add_rewrite_endpoint( 'invoices', EP_ROOT | EP_PAGES );
                 add_filter( 'query_vars', array( $this, 'my_invoices_query_vars' ) );
                 // Menu entry
                 add_filter( 'woocommerce_account_menu_items', array( $this, 'my_invoices_my_account_menu_items' ) );
@@ -75,8 +76,62 @@ class RMA_WC_Invoice {
                 add_filter( 'theme_page_templates', array( $this, 'add_account_invoices_template' ) );
                 // PDF Download
                 add_action( 'template_redirect', array( $this, 'invoice_pdf_download' ) );
+	}
 
 
+	/**
+	 * Checks the invoices for the currently logged-in user and adds notices for overdue or unpaid invoices.
+	 *
+	 * This function retrieves the invoices for the logged-in user from the transient cache or fetches them via the RMA_WC_API if not cached.
+	 * It then filters the invoices to identify those that are overdue or unpaid and adds appropriate notices to the WooCommerce session.
+	 *
+	 * @return string|null Returns 'overdue' if there are overdue invoices, 'unpaid' if there are unpaid invoices, or null if all invoices are paid.
+	 */
+	public function check_invoices() {
+
+		if ( is_user_logged_in() && isset( WC()->session ) && WC()->session->has_session() ) {
+
+			$user_id         = get_current_user_id();
+			$rma_customer_id = get_user_meta( $user_id, 'rma_customer', true );
+
+			if ( ! empty( $rma_customer_id ) ) {
+
+				$invoices = get_transient( 'invoices_' . $rma_customer_id );
+				if ( false === $invoices ) {
+					$RMA_WC_API = new RMA_WC_API();
+					$invoices   = $RMA_WC_API->get_customer_invoices( $rma_customer_id );
+					unset( $RMA_WC_API );
+					set_transient( 'invoices_' . $rma_customer_id, $invoices, HOUR_IN_SECONDS );
+				}
+
+				$overdue_invoices = array_filter(
+					$invoices['invoice'],
+					function( $i ) {
+						return $i['status'] === 'OVERDUE';
+					}
+				);
+
+				$unpaid_invoices = array_filter(
+					$invoices['invoice'],
+					function( $i ) {
+						return $i['status'] !== 'PAID';
+					}
+				);
+
+				$invoice_url = wc_get_endpoint_url( 'invoices', '', get_permalink( get_option( 'woocommerce_myaccount_page_id' ) ) );
+				if ( ! empty( $overdue_invoices ) ) {
+					// translators: %s = url.
+					wc_add_notice( sprintf( __( 'You have overdue <a href="%s">invoices</a>', 'rma-wc' ), $invoice_url ), 'error' );
+					return 'overdue';
+
+				} elseif ( ! empty( $unpaid_invoices ) ) {
+					// translators: %s = url.
+					wc_add_notice( sprintf( __( 'You have unpaid <a href="%s">invoices</a>', 'rma-wc' ), $invoice_url ), 'notice' );
+					return 'unpaid';
+
+				}
+			}
+		}
     }
 
 
