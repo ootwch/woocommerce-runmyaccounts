@@ -118,10 +118,11 @@ class RMA_WC_Invoice {
 					}
 				);
 
-				$invoice_url = wc_get_endpoint_url( 'invoices', '', get_permalink( get_option( 'woocommerce_myaccount_page_id' ) ) );
+                $warning_icon = '<span class="dashicons dashicons-warning"></span>';
+				$invoice_url  = wc_get_endpoint_url( 'invoices', '', get_permalink( get_option( 'woocommerce_myaccount_page_id' ) ) );
 				if ( ! empty( $overdue_invoices ) ) {
 					// translators: %s = url.
-					wc_add_notice( '<span color="red">' . sprintf( __( 'You have overdue <a href="%s">invoices</a>', 'rma-wc' ), $invoice_url ) . '</span>', 'notice' );
+					wc_add_notice( '<span color="red">' . $warning_icon . sprintf( __( 'You have overdue <a href="%s">invoices</a>', 'rma-wc' ), $invoice_url ) . '</span>', 'notice' );
 					return 'overdue';
 
 				} elseif ( ! empty( $unpaid_invoices ) ) {
