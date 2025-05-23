@@ -10,72 +10,72 @@ if ( ! defined('ABSPATH')) exit;
  */
 class RMA_WC_Invoice {
 
-    private $settings;
+	private $settings;
 
-    public function __construct() {
+	public function __construct() {
         add_action( 'admin_init', array($this, 'admin_init_hooks'));
         add_action( 'init', array($this, 'init_hooks'));
 
 		add_action( 'woocommerce_init', array( $this, 'check_invoices' ) );
 
-        // update order status once per hour and display it on the admin and user order overview.
-        add_action( 'init', array( $this, 'maybe_create_schedule_update_invoice_status_event' ) );
-        add_action( 'update_invoice_status', array( $this, 'hourly_update_invoice_status' ) );
-    }
+		// update order status once per hour and display it on the admin and user order overview.
+		add_action( 'init', array( $this, 'maybe_create_schedule_update_invoice_status_event' ) );
+		add_action( 'update_invoice_status', array( $this, 'hourly_update_invoice_status' ) );
+	}
 
 
 
-    public function admin_init_hooks() {
+	public function admin_init_hooks() {
 
-                // allow order query by invoice number.
-                add_filter( 'woocommerce_order_data_store_cpt_get_orders_query', array( $this, 'handle_invoice_number_query_var' ), 10, 2 );
-
-
+				// allow order query by invoice number.
+				add_filter( 'woocommerce_order_data_store_cpt_get_orders_query', array( $this, 'handle_invoice_number_query_var' ), 10, 2 );
 
 
-                // Add invoice column to order list.
-                if ( ! OrderUtil::custom_orders_table_usage_is_enabled() ) {
 
-                    // add status column to order page
+
+				// Add invoice column to order list.
+		if ( ! OrderUtil::custom_orders_table_usage_is_enabled() ) {
+
+			// add status column to order page
                     add_filter( 'manage_edit-shop_order_columns', array( $this, 'add_status_column_to_order_table' ) , 20);
-                    add_action( 'manage_shop_order_posts_custom_column', array( $this, 'add_status_value_to_order_table_row' ), 10, 2 );
+			add_action( 'manage_shop_order_posts_custom_column', array( $this, 'add_status_value_to_order_table_row' ), 10, 2 );
 
-                    // allow filtering for order invoice status
-                    add_action( 'restrict_manage_posts', array( $this, 'filter_status_column' ), 25, 2 );
-                    add_action( 'pre_get_posts', array( $this, 'filter_orders_legacy' ), 25, 2 ); // Legacy.
+			// allow filtering for order invoice status
+			add_action( 'restrict_manage_posts', array( $this, 'filter_status_column' ), 25, 2 );
+			add_action( 'pre_get_posts', array( $this, 'filter_orders_legacy' ), 25, 2 ); // Legacy.
 
-                } else {
-                    // HPOS Hooks.
+		} else {
+			// HPOS Hooks.
 
-                    // add status column to order page
+			// add status column to order page
                     add_filter( 'manage_woocommerce_page_wc-orders_columns', array( $this, 'add_status_column_to_order_table' ) , 20);
-                    add_action( 'manage_woocommerce_page_wc-orders_custom_column', array( $this, 'add_status_value_to_order_table_row' ), 10, 2 );
+			add_action( 'manage_woocommerce_page_wc-orders_custom_column', array( $this, 'add_status_value_to_order_table_row' ), 10, 2 );
 
-                    // allow filtering for order invoice status
-                    add_action( 'woocommerce_order_list_table_prepare_items_query_args', array( $this, 'filter_orders_hpos' ), 25, 2 ); // HPOS.
-                    add_action( 'woocommerce_order_list_table_restrict_manage_orders', array( $this, 'filter_status_column' ), 25, 2 );
+			// allow filtering for order invoice status
+			add_action( 'woocommerce_order_list_table_prepare_items_query_args', array( $this, 'filter_orders_hpos' ), 25, 2 ); // HPOS.
+			add_action( 'woocommerce_order_list_table_restrict_manage_orders', array( $this, 'filter_status_column' ), 25, 2 );
 
-                }
+		}
 
               
 
 
-    }
+	}
 
-    public function init_hooks() {
+	public function init_hooks() {
 
-          // User profile invoice info
+			// User profile invoice info
 
-                // Add endpoints
+				// Add endpoints
 				add_rewrite_endpoint( 'invoices', EP_ROOT | EP_PAGES );
-                add_filter( 'query_vars', array( $this, 'my_invoices_query_vars' ) );
-                // Menu entry
-                add_filter( 'woocommerce_account_menu_items', array( $this, 'my_invoices_my_account_menu_items' ) );
-                add_action( 'woocommerce_account_invoices_endpoint', array( $this, 'my_invoices_endpoint_content' ) );
-                // Template for invoice list
-                add_filter( 'theme_page_templates', array( $this, 'add_account_invoices_template' ) );
-                // PDF Download
-                add_action( 'template_redirect', array( $this, 'invoice_pdf_download' ) );
+				add_filter( 'query_vars', array( $this, 'my_invoices_query_vars' ) );
+				// Menu entry
+				add_filter( 'woocommerce_account_menu_items', array( $this, 'my_invoices_my_account_menu_items' ) );
+				add_action( 'woocommerce_account_invoices_endpoint', array( $this, 'my_invoices_endpoint_content' ) );
+				// Template for invoice list
+				add_filter( 'theme_page_templates', array( $this, 'add_account_invoices_template' ) );
+				// PDF Download
+				add_action( 'template_redirect', array( $this, 'invoice_pdf_download' ) );
 	}
 
 
@@ -88,8 +88,21 @@ class RMA_WC_Invoice {
 	 * @return string|null Returns 'overdue' if there are overdue invoices, 'unpaid' if there are unpaid invoices, or null if all invoices are paid.
 	 */
 	public function check_invoices() {
-        remove_action( 'woocommerce_init', array( $this, 'check_invoices' ) );
+
 		if ( did_action( 'woocommerce_init' ) === 1 && is_user_logged_in() && isset( WC()->session ) && WC()->session->has_session() ) {
+
+			$warning_icon = '<span class="dashicons dashicons-warning"></span>';
+			$invoice_url  = wc_get_endpoint_url( 'invoices', '', get_permalink( get_option( 'woocommerce_myaccount_page_id' ) ) );
+			// translators: %s = url.
+			$overdue_message = '<span color="red">' . $warning_icon . sprintf( __( 'You have overdue <a href="%s">invoices</a>', 'rma-wc' ), $invoice_url ) . '</span>';
+
+			// translators: %s = url.
+			$unpaid_message = sprintf( __( 'You have unpaid <a href="%s">invoices</a>', 'rma-wc' ), $invoice_url );
+
+			// Only set the message once.
+			if ( wc_has_notice( $overdue_message, 'notice' ) || wc_has_notice( $unpaid_message, 'notice' ) ) {
+				return;
+			}
 
 			$user_id         = get_current_user_id();
 			$rma_customer_id = get_user_meta( $user_id, 'rma_customer', true );
@@ -101,36 +114,31 @@ class RMA_WC_Invoice {
 					$RMA_WC_API = new RMA_WC_API();
 					$invoices   = $RMA_WC_API->get_customer_invoices( $rma_customer_id );
 					unset( $RMA_WC_API );
+					if ( false === $invoices ) {
+						return;
+					}
 					set_transient( 'invoices_' . $rma_customer_id, $invoices, HOUR_IN_SECONDS );
 				}
 
 				$overdue_invoices = array_filter(
 					$invoices['invoice'],
 					function( $i ) {
-						return $i['status'] === 'OVERDUE';
+						return 'OVERDUE' === $i['status'];
 					}
 				);
 
 				$unpaid_invoices = array_filter(
 					$invoices['invoice'],
 					function( $i ) {
-						return $i['status'] !== 'PAID';
+						return 'PAID' !== $i['status'];
 					}
 				);
 
-                $warning_icon = '<span class="dashicons dashicons-warning"></span>';
-				$invoice_url  = wc_get_endpoint_url( 'invoices', '', get_permalink( get_option( 'woocommerce_myaccount_page_id' ) ) );
-                // translators: %s = url.
-                $overdue_message = '<span color="red">' . $warning_icon . sprintf( __( 'You have overdue <a href="%s">invoices</a>', 'rma-wc' ), $invoice_url ) . '</span>';
-
-                // translators: %s = url.
-                $unpaid_message = sprintf( __( 'You have unpaid <a href="%s">invoices</a>', 'rma-wc' ), $invoice_url );
-                
-				if ( ! empty( $overdue_invoices ) && ! wc_has_notice( $overdue_message, 'notice' ) ) {
+				if ( ! empty( $overdue_invoices ) ) {
 					wc_add_notice( $overdue_message, 'notice' );
 					return 'overdue';
 
-				} elseif ( ! empty( $unpaid_invoices ) && ! wc_has_notice( $unpaid_message, 'notice' ) ) {
+				} elseif ( ! empty( $unpaid_invoices ) ) {
 					// translators: %s = url.
 					wc_add_notice( $unpaid_message, 'notice' );
 					return 'unpaid';
@@ -138,48 +146,48 @@ class RMA_WC_Invoice {
 				}
 			}
 		}
-    }
+	}
 
 
-    /**
-         * Allow querying orders by invoice number.
-         *
-         * https://github.com/woocommerce/woocommerce/wiki/wc_get_orders-and-WC_Order_Query#adding-custom-parameter-support
-         * Handle a custom 'customvar' query var to get orders with the 'customvar' meta.
-         * 
-         * @param array $query - Args for WP_Query.
-         * @param array $query_vars - Query vars from WC_Order_Query.
-         * @return array modified $query
-         */
-        function handle_invoice_number_query_var( $query, $query_vars ) {
-            if ( ! empty( $query_vars['invoice_number'] ) ) {
-                $query['meta_query'][] = array(
+	/**
+	 * Allow querying orders by invoice number.
+	 *
+	 * https://github.com/woocommerce/woocommerce/wiki/wc_get_orders-and-WC_Order_Query#adding-custom-parameter-support
+	 * Handle a custom 'customvar' query var to get orders with the 'customvar' meta.
+	 *
+	 * @param array $query - Args for WP_Query.
+	 * @param array $query_vars - Query vars from WC_Order_Query.
+	 * @return array modified $query
+	 */
+	function handle_invoice_number_query_var( $query, $query_vars ) {
+		if ( ! empty( $query_vars['invoice_number'] ) ) {
+			$query['meta_query'][] = array(
                     'key' => '_rma_invoice',
-                    'value' => esc_attr( $query_vars['invoice_number'] ),
-                );
-            }
+				'value' => esc_attr( $query_vars['invoice_number'] ),
+			);
+		}
 
-            return $query;
-        }
+		return $query;
+	}
 
-        /**
-         * Create scheduler for hourly order status update.
-         * Schedules the event if it's NOT already scheduled.
-         */
+		/**
+		 * Create scheduler for hourly order status update.
+		 * Schedules the event if it's NOT already scheduled.
+		 */
         public function maybe_create_schedule_update_invoice_status_event( ) {
             if ( ! wp_next_scheduled ( 'update_invoice_status' ) ) {
-                wp_schedule_event( time(), 'hourly', 'update_invoice_status' );
-            }
-        }
+			wp_schedule_event( time(), 'hourly', 'update_invoice_status' );
+		}
+	}
 
-        /**
-         * Update order status
+		/**
+		 * Update order status
          * 
-         */
+		 */
         public function hourly_update_invoice_status( ) {
             $RMA_WC_API = new RMA_WC_API();
-            $status_array = $RMA_WC_API->get_invoice_status();
-            if ( false !== $status_array ) {
+		$status_array = $RMA_WC_API->get_invoice_status();
+		if ( false !== $status_array ) {
                 foreach( $status_array as $invoice_number=>$status) {
                     $orders = wc_get_orders( array( 'invoice_number' =>  $invoice_number ) );
                     foreach( $orders as $order ) {
@@ -190,274 +198,274 @@ class RMA_WC_Invoice {
                             'array'=>$status_array
                         )));
 
-                        $order->update_meta_data( '_rma_invoice_status', sanitize_text_field( $status ) );
+					$order->update_meta_data( '_rma_invoice_status', sanitize_text_field( $status ) );
                         $order->update_meta_data('_rma_invoice_status_timestamp', current_datetime()->format('c') );
-                        $order->save_meta_data();
-                    }
-                }
-            } else {
-                $log_values = array(
-					'status'     => 'error',
-					'section_id' => '',
-					'section'    => esc_html_x( 'Get Invoice Status', 'Log Section', 'rma-wc' ),
-					'mode'       => self::rma_mode(),
-					'message'    => esc_html_x( 'Invoice Status could not be read.', 'Log Section', 'rma-wc' ),
-				);
+					$order->save_meta_data();
+				}
+			}
+		} else {
+			$log_values = array(
+				'status'     => 'error',
+				'section_id' => '',
+				'section'    => esc_html_x( 'Get Invoice Status', 'Log Section', 'rma-wc' ),
+				'mode'       => self::rma_mode(),
+				'message'    => esc_html_x( 'Invoice Status could not be read.', 'Log Section', 'rma-wc' ),
+			);
 
-				RMA_WC_API::write_log( $log_values );
-            }
+			RMA_WC_API::write_log( $log_values );
+		}
 
-            unset( $RMA_WC_API );
-        }
+		unset( $RMA_WC_API );
+	}
 
 
-        /**
-         * Add status column to order table
-         *
-         * @param $columns
-         *
-         * @return array
-         */
-        public function add_status_column_to_order_table( $columns ) {
+		/**
+		 * Add status column to order table
+		 *
+		 * @param $columns
+		 *
+		 * @return array
+		 */
+	public function add_status_column_to_order_table( $columns ) {
 
-            // $this->update_invoice_status();
-            $columns = RMA_WC_Frontend::array_insert( $columns, 'rma_invoice', 'rma_invoice_status', __( 'Invoice Status', 'rma-wc' ) );
-            return $columns;
-        }
+		// $this->update_invoice_status();
+		$columns = RMA_WC_Frontend::array_insert( $columns, 'rma_invoice', 'rma_invoice_status', __( 'Invoice Status', 'rma-wc' ) );
+		return $columns;
+	}
 
-        public function add_status_value_to_order_table_row( $column, $order ) {
+	public function add_status_value_to_order_table_row( $column, $order ) {
 
-            global $post;
+		global $post;
 
-            switch ( $column ) {
+		switch ( $column ) {
 
                 case 'rma_invoice_status' :
-                    echo '<mark class="order-status" title="';
-                    echo __( 'Last updated: ', 'rma-wc' );
+				echo '<mark class="order-status" title="';
+				echo __( 'Last updated: ', 'rma-wc' );
                     echo wp_date( get_option( 'date_format' ),strtotime( $order->get_meta('_rma_invoice_status_timestamp', true ) ) );
-                    echo ' ';
+				echo ' ';
                     echo wp_date( get_option( 'time_format' ),strtotime( $order->get_meta( '_rma_invoice_status_timestamp', true ) ) );
-                    echo '"><span>';
-                    echo $order->get_meta( '_rma_invoice_status', true );
+				echo '"><span>';
+				echo $order->get_meta( '_rma_invoice_status', true );
                     echo "</span></mark>";
-                    
-                default:
-            }
+
+			default:
+		}
 
 
-        }
+	}
 
-        public function filter_status_column( $post_type, $which ) {
-		
+	public function filter_status_column( $post_type, $which ) {
+
             if( 'shop_order' !== $post_type ) {
-                return;
-            }
-            
-            $status_field = isset( $_GET[ 'rma_status_field' ] ) ? $_GET[ 'rma_status_field' ] : '';
-    
-            ?>
-                <select name="rma_status_field">
-                    <option selected="selected" value="any" <?php selected( $status_field, 'any' ); ?>>Any Invoice Status</option>
-                    <option value="invoiced" <?php selected( $status_field, 'invoiced' ); ?>>Invoiced</option>
-                    <option value="empty" <?php selected( $status_field, 'empty' ); ?>>No Invoice</option>
-                </select>
-            <?php
-        }
-
-        public function filter_orders_hpos( $query_args ) {
+			return;
+		}
 
             $status_field = isset( $_GET[ 'rma_status_field' ] ) ? $_GET[ 'rma_status_field' ] : '';
 
-            if ( 'any' === $status_field ) {
-                return $query_args;
-            }
-            $meta_query = $query_args['meta_query'] ?? array();
-            if ( 'empty' === $status_field ) {
-                $meta_query[] = array(
-                    array(
+		?>
+				<select name="rma_status_field">
+					<option selected="selected" value="any" <?php selected( $status_field, 'any' ); ?>>Any Invoice Status</option>
+					<option value="invoiced" <?php selected( $status_field, 'invoiced' ); ?>>Invoiced</option>
+					<option value="empty" <?php selected( $status_field, 'empty' ); ?>>No Invoice</option>
+				</select>
+			<?php
+	}
+
+	public function filter_orders_hpos( $query_args ) {
+
+            $status_field = isset( $_GET[ 'rma_status_field' ] ) ? $_GET[ 'rma_status_field' ] : '';
+
+		if ( 'any' === $status_field ) {
+			return $query_args;
+		}
+		$meta_query = $query_args['meta_query'] ?? array();
+		if ( 'empty' === $status_field ) {
+			$meta_query[] = array(
+				array(
                         'key'   => '_rma_invoice_status',
                         'value' => '',
-                        'compare' => 'NOT EXISTS',
-                    ),
-                );
-            }
+					'compare' => 'NOT EXISTS',
+				),
+			);
+		}
 
-            if ( 'invoiced' === $status_field ) {
-                $meta_query[] = array(
+		if ( 'invoiced' === $status_field ) {
+			$meta_query[] = array(
                         'key'   => '_rma_invoice_status',
                         'value' => '',
-                        'compare' => '!=',
-                );
-            }
-            $query_args['meta_query'] = $meta_query;
+				'compare' => '!=',
+			);
+		}
+		$query_args['meta_query'] = $meta_query;
 
-            
-            return $query_args;
-        }
 
-        public function filter_orders_legacy( $query ) {
+		return $query_args;
+	}
+
+	public function filter_orders_legacy( $query ) {
 
             if( ! is_admin() ) {
-                return;
-            }
-        
-            global $pagenow;
-            // just being super-accurate here
+			return;
+		}
+
+		global $pagenow;
+		// just being super-accurate here
             if( 'edit.php' !== $pagenow || 'shop_order' !== $query->get( 'post_type' ) ) {
-                return;
-            }
+			return;
+		}
 
             $status_field = isset( $_GET[ 'rma_status_field' ] ) ? $_GET[ 'rma_status_field' ] : '';
 
-            if ( 'any' === $status_field ) {
-                return $query;
-            }
+		if ( 'any' === $status_field ) {
+			return $query;
+		}
             $meta_query = (array)$query->get('meta_query');
-            if ( 'empty' === $status_field ) {  
-                $meta_query[] = array(
-                    'relation' => 'OR',
-                    array(
+		if ( 'empty' === $status_field ) {
+			$meta_query[] = array(
+				'relation' => 'OR',
+				array(
                         'key' => '_rma_invoice_status',
-                        'compare' => 'NOT EXISTS',
-                    ),
-                    array(
+					'compare' => 'NOT EXISTS',
+				),
+				array(
                         'key' => '_rma_invoice_status',
-                        'value' => '',
+					'value' => '',
                     )
-                );
-            }
+			);
+		}
 
-            if ( 'invoiced' === $status_field ) {  
-                $meta_query[] = array(
-                    array(
+		if ( 'invoiced' === $status_field ) {
+			$meta_query[] = array(
+				array(
                         'key' => '_rma_invoice_status',
                         'value' => '',
-                        'compare' => '!=',
+					'compare' => '!=',
                     )
-                );
-            }
-            
-            // Set the meta query to the complete, altered query
+			);
+		}
+
+		// Set the meta query to the complete, altered query
             $query->set('meta_query',$meta_query);
 
-        }
+	}
 
 
 
-        /**
-         * User Profile Info
-         * Show invoice information to users on their profile page.
-         */
+		/**
+		 * User Profile Info
+		 * Show invoice information to users on their profile page.
+		 */
 
-         /**
-         * Register new endpoint to use inside My Account page.
-         *
-         * @see https://developer.wordpress.org/reference/functions/add_rewrite_endpoint/
-         */
-        function my_invoices_endpoint() {
-            add_rewrite_endpoint( 'invoices', EP_ROOT | EP_PAGES );
-        }
+		/**
+		 * Register new endpoint to use inside My Account page.
+		 *
+		 * @see https://developer.wordpress.org/reference/functions/add_rewrite_endpoint/
+		 */
+	function my_invoices_endpoint() {
+		add_rewrite_endpoint( 'invoices', EP_ROOT | EP_PAGES );
+	}
 
-        /**
-         * Add new query var.
-         *
-         * @param array $vars
-         * @return array
-         */
-        function my_invoices_query_vars( $vars ) {
-            $vars[] = 'invoices';
+		/**
+		 * Add new query var.
+		 *
+		 * @param array $vars
+		 * @return array
+		 */
+	function my_invoices_query_vars( $vars ) {
+		$vars[] = 'invoices';
 
-            return $vars;
-        }
+		return $vars;
+	}
 
-        /**
-         * Insert the new endpoint into the My Account menu.
-         *
-         * @param array $items
-         * @return array
-         */
-        function my_invoices_my_account_menu_items( $items ) {
+		/**
+		 * Insert the new endpoint into the My Account menu.
+		 *
+		 * @param array $items
+		 * @return array
+		 */
+	function my_invoices_my_account_menu_items( $items ) {
 
-            $items = RMA_WC_Frontend::array_insert( $items, 'orders', 'invoices', __( 'Invoices', 'rma-wc' ) );
+		$items = RMA_WC_Frontend::array_insert( $items, 'orders', 'invoices', __( 'Invoices', 'rma-wc' ) );
 
-            return $items;
-        }
+		return $items;
+	}
 
 
-        /**
-         * Add page templates.
-         *
+		/**
+		 * Add page templates.
+		 *
          * @param  array  $templates  The list of page templates
-         *
-         * @return array  $templates  The modified list of page templates
-         */
+		 *
+		 * @return array  $templates  The modified list of page templates
+		 */
         function add_account_invoices_template ( $templates ) {
             $templates[plugin_dir_path( __FILE__ ) . 'templates/invoices.php'] = __( 'Page Template From Plugin', 'text-domain' );
 
-            return $templates;
-        }
+		return $templates;
+	}
 
 
-        /**
-         * Endpoint HTML content.
-         */
-        function my_invoices_endpoint_content() {
+		/**
+		 * Endpoint HTML content.
+		 */
+	function my_invoices_endpoint_content() {
 
-            $invoice_data = array();
+		$invoice_data = array();
 
             $user_id = get_current_user_id();
-            $rma_customer_id = get_user_meta( $user_id, 'rma_customer', true );
+		$rma_customer_id = get_user_meta( $user_id, 'rma_customer', true );
 
             if( ! empty( $rma_customer_id ) ) {
 
-                $RMA_WC_API = new RMA_WC_API();
+			$RMA_WC_API = new RMA_WC_API();
 
-                $customer_info = $RMA_WC_API->get_customer( $rma_customer_id );
+			$customer_info = $RMA_WC_API->get_customer( $rma_customer_id );
                 $invoices = $RMA_WC_API->get_customer_invoices( $rma_customer_id );
 
                 $invoice_data[ 'customer_info'] = $customer_info;
                 $invoice_data['invoices'] = $invoices;
 
-                unset( $RMA_WC_API );
+			unset( $RMA_WC_API );
                 load_template(plugin_dir_path(__FILE__) . '../templates/invoices.php', null, $invoice_data); // TODO: Do real templating
             }
             else {
                 printf ('<div class="warning">%1s</div>', esc_html_e( 'This user does not have an account in the accounting system.', 'rma-wc' ));
 
-            }
-        }
+		}
+	}
 
-        /**
-         * Endpoint PDF Download
+		/**
+		 * Endpoint PDF Download
+		 *
+		 * Requires a nonce _wpnonce, 'download-pdf-nonce-' . $invoice_number
          * 
-         * Requires a nonce _wpnonce, 'download-pdf-nonce-' . $invoice_number
-         * 
-         */
-        public function invoice_pdf_download() {
+		 */
+	public function invoice_pdf_download() {
 
-            $path = wp_parse_url( $_SERVER['REQUEST_URI'], PHP_URL_PATH );
+		$path = wp_parse_url( $_SERVER['REQUEST_URI'], PHP_URL_PATH );
 
-            if ( ! str_ends_with( rtrim( wc_get_endpoint_url( 'invoices/pdf', '', wc_get_page_permalink( 'myaccount' ) ), '/' ), dirname( $path ) ) ) {
-                return;
-            }
+		if ( ! str_ends_with( rtrim( wc_get_endpoint_url( 'invoices/pdf', '', wc_get_page_permalink( 'myaccount' ) ), '/' ), dirname( $path ) ) ) {
+			return;
+		}
 
-            $invoice_number = strtoupper( sanitize_key( basename( $path ) ) );
+		$invoice_number = strtoupper( sanitize_key( basename( $path ) ) );
             $nonce = $_REQUEST['_wpnonce'];
-            if ( ! wp_verify_nonce( $nonce, 'download-pdf-nonce-' . $invoice_number ) ) {
-                // This nonce is not valid.
-                wp_die( __( 'Security check failed', 'textdomain' ) );
-            } else {
-                // The nonce was valid.
-                $RMA_WC_API = new RMA_WC_API();
+		if ( ! wp_verify_nonce( $nonce, 'download-pdf-nonce-' . $invoice_number ) ) {
+			// This nonce is not valid.
+			wp_die( __( 'Security check failed', 'textdomain' ) );
+		} else {
+			// The nonce was valid.
+			$RMA_WC_API = new RMA_WC_API();
                 $pdf_data = $RMA_WC_API->get_invoice_pdf( $invoice_number );
-                unset( $RMA_WC_API );
-                
+			unset( $RMA_WC_API );
+
                 http_response_code(200);
                 header("Content-Type: application/pdf");
                 header('Content-Length: ' . mb_strlen($pdf_data, '8bit'));
-                echo $pdf_data;
-                exit;
-            }
-        }
+			echo $pdf_data;
+			exit;
+		}
+	}
 
-    }
+}
