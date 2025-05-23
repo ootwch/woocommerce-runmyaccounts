@@ -16,7 +16,7 @@ class RMA_WC_Invoice {
         add_action( 'admin_init', array($this, 'admin_init_hooks'));
         add_action( 'init', array($this, 'init_hooks'));
 
-		add_action( 'woocommerce_init', array( $this, 'check_invoices' ) );
+		add_action( 'wp_head', array( $this, 'check_invoices' ) );
 
 		// update order status once per hour and display it on the admin and user order overview.
 		add_action( 'init', array( $this, 'maybe_create_schedule_update_invoice_status_event' ) );
