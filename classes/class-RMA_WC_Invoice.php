@@ -123,14 +123,14 @@ class RMA_WC_Invoice {
 				$overdue_invoices = array_filter(
 					$invoices['invoice'],
 					function( $i ) {
-						return 'OVERDUE' === $i['status'];
+						return 'OVERDUE' === $i['status'] && 0 < $i['amount'];
 					}
 				);
 
 				$unpaid_invoices = array_filter(
 					$invoices['invoice'],
 					function( $i ) {
-						return 'PAID' !== $i['status'];
+						return 'PAID' !== $i['status'] && 0 < $i['amount'];
 					}
 				);
 
