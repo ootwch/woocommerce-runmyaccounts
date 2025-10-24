@@ -56,9 +56,9 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
                 return;
 
             // enqueue script and style for autocomplete on admin page
-            wp_enqueue_script( 'select2', plugins_url( '../assets/js/select2.min.js', __FILE__ ), array('jquery'), '4.0.13', 'true' );
-            wp_register_style( 'select2', plugins_url( '../assets/css/select2.min.css', __FILE__ ), false, '4.0.13' );
-            wp_enqueue_style( 'select2' );
+            wp_enqueue_script( 'wc-select2', plugins_url( '../assets/js/select2.min.js', __FILE__ ), array('jquery'), '4.0.13', 'true' );
+            wp_register_style( 'wc-select2', plugins_url( '../assets/css/select2.min.css', __FILE__ ), false, '4.0.13' );
+            wp_enqueue_style( 'wc-select2' );
 
             wp_enqueue_script( 'rma-admin-script', plugins_url( '../assets/js/admin.js', __FILE__ ), array('jquery'), get_option( 'wc_rma_version' ), 'true' );
 
