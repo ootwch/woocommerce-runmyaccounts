@@ -105,14 +105,14 @@ if ( ! class_exists('RMA_WC_Frontend' ) ) {
         public function woocommerce_billing_fields( $fields ) {
 
             $fields['billing_title'] = array(
-                'label'       => esc_html__('Title', 'rma-wc'),
+                'label'       => esc_html__('Title', 'run-my-accounts-for-woocommerce'),
                 'type'        => 'select',
                 'class'       => array ( 'form-row-wide', 'address-field' ),
                 'options'     => apply_filters(
                     'woocommerce_rma_title_options',
                     array(
-                        1 => __('Mr.', 'rma-wc'),
-                        2 => __('Ms.', 'rma-wc')
+                        1 => __('Mr.', 'run-my-accounts-for-woocommerce'),
+                        2 => __('Ms.', 'run-my-accounts-for-woocommerce')
                     )
                 ),
                 'required' => true,
@@ -132,7 +132,11 @@ if ( ! class_exists('RMA_WC_Frontend' ) ) {
         public function woocommerce_save_billing_fields( $order_id  ) {
 
             if ( ! empty( $_POST['billing_title'] ) ) {
-                update_post_meta( $order_id, '_billing_title', sanitize_text_field( $_POST['billing_title'] ) );
+
+	            $order = wc_get_order( $order_id );
+	            $order->update_meta_data( '_billing_title', sanitize_text_field( $_POST['billing_title'] ) );
+	            $order->save();
+
             }
 
         }
@@ -146,7 +150,7 @@ if ( ! class_exists('RMA_WC_Frontend' ) ) {
          */
         public function add_column_to_user_table( $column ): array {
 
-            $column = self::array_insert( $column, 'email', 'rma_customer_id', __( 'RMA Customer # ', 'rma-wc') );
+            $column = self::array_insert( $column, 'email', 'rma_customer_id', __( 'RMA Customer # ', 'run-my-accounts-for-woocommerce') );
 
             return $column;
         }
@@ -196,29 +200,8 @@ if ( ! class_exists('RMA_WC_Frontend' ) ) {
          */
         public function plugins_loaded() {
 
-            self::load_textdomain();
-
             // Display the admin notification
 	        add_action( 'admin_notices', array( $this, 'admin_notices' ) ) ;
-        }
-
-        /**
-         * Load Textdomains
-         */
-        public function load_textdomain() {
-
-            /**
-             * load_textdomain() WP Since: 1.0.0
-             * https://codex.wordpress.org/Function_Reference/load_textdomain
-             */
-            load_textdomain( 'rma-wc', WP_LANG_DIR . "/plugins/rma-wc/rma-wc-$this->locale.mo" );
-
-            /**
-             * load_plugin_textdomain() WP Since: 1.0.0
-             * https://codex.wordpress.org/Function_Reference/load_plugin_textdomain
-             */
-            load_plugin_textdomain( 'rma-wc', false, plugin_basename( RMA_WC_PFAD . 'languages/' ) );
-
         }
 
 	    /**
@@ -233,10 +216,10 @@ if ( ! class_exists('RMA_WC_Frontend' ) ) {
 	        if ( 70200 > PHP_VERSION_ID ) {
                 $html = '<div class="notice notice-error">';
                 $html .= '<p>';
-                $html .= '<b>'.esc_html__( 'Run my Accounts for WooCommerce', 'rma-wc' ).'&nbsp;</b>';
-                $html .= esc_html__( 'You are using a wrong PHP version. You need to install PHP 7.2 or higher.', 'rma-wc' );
+                $html .= '<b>'.esc_html__( 'Run my Accounts for WooCommerce', 'run-my-accounts-for-woocommerce' ).'&nbsp;</b>';
+                $html .= esc_html__( 'You are using a wrong PHP version. You need to install PHP 7.2 or higher.', 'run-my-accounts-for-woocommerce' );
                 $html .= '&nbsp;';
-                $html .= sprintf( esc_html__( 'The current PHP version is %s.', 'rma-wc' ), PHP_VERSION);
+                $html .= sprintf( esc_html__( 'The current PHP version is %s.', 'run-my-accounts-for-woocommerce' ), PHP_VERSION);
                 $html .= '</p>';
                 $html .= '</div>';
 
@@ -248,8 +231,8 @@ if ( ! class_exists('RMA_WC_Frontend' ) ) {
 
 		        $html = '<div class="notice notice-warning">';
 		        $html .= '<p>';
-		        $html .= '<b>'.esc_html__( 'Warning', 'rma-wc' ).'&nbsp;</b>';
-		        $html .= esc_html__('Please enter your Production Client and Production API Key before using Run my Accounts for WooCommerce in production mode.', 'rma-wc' );
+		        $html .= '<b>'.esc_html__( 'Warning', 'run-my-accounts-for-woocommerce' ).'&nbsp;</b>';
+		        $html .= esc_html__('Please enter your Production Client and Production API Key before using Run my Accounts for WooCommerce in production mode.', 'run-my-accounts-for-woocommerce' );
 		        $html .= '</p>';
 		        $html .= '</div>';
 
@@ -260,7 +243,7 @@ if ( ! class_exists('RMA_WC_Frontend' ) ) {
 	        if( ( isset($rma_settings['rma-active']) && $rma_settings['rma-active']=='') || !isset($rma_settings['rma-active'] ))  {
 
 		        $html = '<div class="update-nag">';
-		        $html .= esc_html__( 'WooCommerce Run my Accounts is not activated. No invoice will be created.', 'rma-wc' );
+		        $html .= esc_html__( 'WooCommerce Run my Accounts is not activated. No invoice will be created.', 'run-my-accounts-for-woocommerce' );
 		        $html .= '</div>';
 
 		        echo $html;
@@ -323,7 +306,8 @@ if ( ! class_exists('RMA_WC_Frontend' ) ) {
          */
         public function create_invoice_on_status_change( $order_id, $old_status, $new_status ) {
 
-            $invoice_number = get_post_meta( $order_id, '_rma_invoice', true );
+	        $order = wc_get_order( $order_id );
+	        $invoice_number = $order->get_meta( '_rma_invoice', true );
 
             if( !empty( $invoice_number ) || 'completed' != $new_status || !class_exists('RMA_WC_API') )
                 return false;

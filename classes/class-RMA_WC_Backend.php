@@ -70,7 +70,6 @@ if (!class_exists('RMA_WC_Backend')) {
          */
         public function plugins_loaded() {
 
-            $this->create();
             $this->update();
         }
 

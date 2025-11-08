@@ -104,10 +104,10 @@ class RMA_WC_Rental_And_Booking {
 
         // build multiline description
         $part[ 'description' ] = $part[ 'description' ] . "\n" .
-                                 sprintf( __( 'Pickup Location: %s', 'rma-wc' ), $pickup_location ) . "\n" .
-                                 sprintf( __( 'Pickup Date/Time: %s', 'rma-wc' ), $pickup_date ) . "\n" .
-                                 sprintf( __( 'Return Date/Time: %s', 'rma-wc' ), $return_date ) . "\n" .
-                                 sprintf( __( 'Total Days: %s (%s)', 'rma-wc' ), $days, $total_days );
+                                 sprintf( __( 'Pickup Location: %s', 'run-my-accounts-for-woocommerce' ), $pickup_location ) . "\n" .
+                                 sprintf( __( 'Pickup Date/Time: %s', 'run-my-accounts-for-woocommerce' ), $pickup_date ) . "\n" .
+                                 sprintf( __( 'Return Date/Time: %s', 'run-my-accounts-for-woocommerce' ), $return_date ) . "\n" .
+                                 sprintf( __( 'Total Days: %1$s (%2$s)', 'run-my-accounts-for-woocommerce' ), $days, $total_days );
 
         // return modified array
         return $part;

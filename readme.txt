@@ -1,12 +1,12 @@
 === Run my Accounts for WooCommerce===
-* Contributors: openstream, codestylist
+* Contributors: openstream
 * Tags: Run my Accounts, WooCommerce, Billing
-* Requires at least: 4.7
-* Tested up to: 6.2
-* Stable tag: 1.7.1
+* Requires at least: 6.2
+* Tested up to: 6.8
+* Stable tag: 1.9.1
 * Requires PHP: 7.2
-* License: GPLv3
-* License URI: https://www.gnu.org/licenses/gpl-3.0.html
+* License: GPLv2
+* License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 This plug-in connects WooCommerce with Run my Accounts.
 
@@ -44,19 +44,37 @@ Please send a request to the Openstream Internet Solutions. We provide customiza
 
 == Screenshots ==
 1. General settings.
-2. Settings for dedicated receivable account for each payment gateway.
-3. Settings on user page.
+2. Settings for a dedicated receivable account for each payment gateway.
+3. Settings on the user page.
 
 == Known issues ==
-* Discount codes does not be reflected on the invoice.
+* Discount codes do not be reflected on the invoice.
 * Credits are not created in Run My Accounts.
 * The collective invoice only works with available products. If a product was deleted between the order and the invoice, the product cannot be included in the invoice anymore.
 
 == Changelog ==
+= 1.9.1 =
+* Fixed a fatal error that could occur on the log page
+
+= 1.9.0 =
+* Added the option to select separately whether the prices transferred to Run My Accounts include VAT or not
+
+= 1.8.1 =
+* Added compatibility with price rules plugins
+* Compatibility - tested up to WooCommerce 9.8
+* Compatibility - tested up to WordPress 6.8
+
+= 1.8.0 =
+* Added support for WooCommerce HPOS
+* Added code improvements, escaping and sanitizing text
+* Moved language handling to [GlotPress](https://translate.wordpress.org/projects/wp-plugins/run-my-accounts-for-woocommerce/)
+* Bumped required WordPress version to 6.2
+* Bumped required WooCommerce version to 8.2
+
 = 1.7.1 =
 * Fix - added handling cURL error on settings page
-* Compatibility - tested up to WooCommerce 7.4
-* Compatibility - tested up to WordPress 6.2
+* Compatibility - tested up to WooCommerce 7.4 - 8.3
+* Compatibility - tested up to WordPress 6.2 - 6.7
 
 = 1.7.0 =
 * Feature - added collective invoice per customer
