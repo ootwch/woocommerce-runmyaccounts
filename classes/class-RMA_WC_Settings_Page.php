@@ -9,6 +9,16 @@
  * @since       1.3
  */
 
+ /**
+  * This class tries to read the following settings from wp_config.php:
+  * - RMA_MANDANT_LIVE
+  * - RMA_APIKEY_LIVE
+  * - RMA_MANDANT_TEST
+  * - RMA_APIKEY_TEST
+  *
+  * If these settings are not found, the class will try to read them from the database.
+  */
+
 if ( !defined('ABSPATH' ) ) exit;
 
 if ( !class_exists('RMA_WC_Settings_Page') ) {
@@ -207,61 +217,127 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 			);
 
 			$id = 'rma-live-client';
+            if ( defined( 'RMA_MANDANT_LIVE' ) ) {
 			add_settings_field(
 				$id,
-				esc_html__('Production Client', 'run-my-accounts-for-woocommerce'),
-				array( $this, 'option_input_text_cb'), // general call back for input text
+                        esc_html__( 'Production Client', 'run-my-accounts-for-woocommerce' ),
+                        array( $this, 'option_secret_cb' ), // call back for secret text
 				$this->option_page_general,
 				$section,
 				array(
 					'option_group' => $this->option_group_general,
 					'id'           => $id,
-					'value'        => isset( $this->options_general[ $id ] ) ? $this->options_general[ $id ] : ''
+                        'value'        => RMA_MANDANT_LIVE,
+                        'description'  => esc_attr__( 'Configured in WP-CONFIG', 'run-my-accounts-for-woocommerce' ),
+                    )
+                );
+            } else {
+                add_settings_field(
+                    $id,
+                    esc_html__( 'Production Client', 'run-my-accounts-for-woocommerce' ),
+                    array( $this, 'option_input_text_cb' ), // general call back for input text
+                    $this->option_page_general,
+                    $section,
+                    array(
+                        'option_group' => $this->option_group_general,
+                        'id'           => $id,
+                        'value'        => isset( $this->options_general[ $id ] ) ? $this->options_general[ $id ] : '',
 				)
 			);
+            }
 
 			$id = 'rma-live-apikey';
+            if ( defined( 'RMA_APIKEY_LIVE' ) ) {
 			add_settings_field(
 				$id,
-				esc_html__('Production API key', 'run-my-accounts-for-woocommerce'),
-				array( $this, 'option_input_text_cb'),
+                        esc_html__( 'Production API key', 'run-my-accounts-for-woocommerce' ),
+                        array( $this, 'option_secret_cb' ),
 				$this->option_page_general,
 				$section,
 				array(
 					'option_group' => $this->option_group_general,
 					'id'           => $id,
-					'value'        => isset( $this->options_general[ $id ] ) ? $this->options_general[ $id ] : ''
+                        'value'        => RMA_APIKEY_LIVE,
+                        'description'  => esc_attr__( 'Configured in WP-CONFIG', 'run-my-accounts-for-woocommerce' ),
+                )
+            );
+            } else {
+                add_settings_field(
+                    $id,
+                    esc_html__( 'Production API key', 'run-my-accounts-for-woocommerce' ),
+                    array( $this, 'option_input_text_cb' ),
+                    $this->option_page_general,
+                    $section,
+                    array(
+                        'option_group' => $this->option_group_general,
+                        'id'           => $id,
+                        'value'        => isset( $this->options_general[ $id ] ) ? $this->options_general[ $id ] : '',
 				)
 			);
+            }
 
 			$id = 'rma-test-client';
+            // Defined in WP-CONFIG?
+            if ( defined( 'RMA_MANDANT_TEST' ) ) {
 			add_settings_field(
 				$id,
-				esc_html__('Sandbox Client', 'run-my-accounts-for-woocommerce'),
-				array( $this, 'option_input_text_cb'), // general call back for input text
+                        esc_html__( 'Sandbox Client', 'run-my-accounts-for-woocommerce' ),
+                        array( $this, 'option_secret_cb' ), // general call back for input text
 				$this->option_page_general,
 				$section,
 				array(
 					'option_group' => $this->option_group_general,
 					'id'           => $id,
-					'value'        => isset( $this->options_general[ $id ] ) ? $this->options_general[ $id ] : ''
+                        'value'        => RMA_MANDANT_TEST,
+                        'description'  => esc_attr__( 'Configured in WP-CONFIG', 'run-my-accounts-for-woocommerce' ),
+                )
+            );
+            } else {
+                add_settings_field(
+                    $id,
+                    esc_html__( 'Sandbox Client', 'run-my-accounts-for-woocommerce' ),
+                    array( $this, 'option_input_text_cb' ), // general call back for input text
+                    $this->option_page_general,
+                    $section,
+                    array(
+                        'option_group' => $this->option_group_general,
+                        'id'           => $id,
+                        'value'        => isset( $this->options_general[ $id ] ) ? $this->options_general[ $id ] : '',
 				)
 			);
+            }
 
 			$id = 'rma-test-apikey';
+            if ( defined( 'RMA_APIKEY_TEST' ) ) {
 			add_settings_field(
 				$id,
-				esc_html__('Sandbox API key', 'run-my-accounts-for-woocommerce'),
-				array( $this, 'option_input_text_cb'),
+                        esc_html__( 'Sandbox API key', 'run-my-accounts-for-woocommerce' ),
+                        array( $this, 'option_secret_cb' ),
 				$this->option_page_general,
 				$section,
 				array(
 					'option_group' => $this->option_group_general,
 					'id'           => $id,
-					'value'        => isset( $this->options_general[ $id ] ) ? $this->options_general[ $id ] : ''
+                        'value'        => RMA_APIKEY_TEST,
+                        'description'  => esc_attr__( 'Configured in WP-CONFIG', 'run-my-accounts-for-woocommerce' ),
+                        )
+                    );
+            } else {
+                add_settings_field(
+                    $id,
+                    esc_html__( 'Sandbox API key', 'run-my-accounts-for-woocommerce' ),
+                    array( $this, 'option_input_text_cb' ),
+                    $this->option_page_general,
+                    $section,
+                    array(
+                        'option_group' => $this->option_group_general,
+                        'id'           => $id,
+                        'value'        => isset( $this->options_general[ $id ] ) ? $this->options_general[ $id ] : '',
 				)
 			);
 		}
+        }
+
 
 		/**
 		 * Page General, Section Billing
@@ -1153,6 +1229,30 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
 			echo '<p class="' . $class . '">' . $text . '</p>';
 		}
+
+        /**
+         * Secret Value Field Text
+         *
+         * @param array $args
+         */
+        public function option_secret_cb( $args ) {
+
+            $id           = ( isset( $args['id'] ) ) ? $args['id'] : '';
+            $value        = ( isset( $args['value'] ) ) ? $args['value'] : '';
+            $description  = ( isset( $args['description'] ) ) ? $args['description'] : '';
+
+            $secret_value = substr( $value, 0, 2 ) . '..' . substr( $value, -1 );
+
+            printf(
+                '<p id="%1$s">%2$s</p>',
+                $id,
+                $secret_value,
+            );
+
+            if ( ! empty( $description ) ) {
+                echo '<p class="description">' . $description . '</p>';
+            }
+        }
 
 		/**
 		 * Individual pulldown
