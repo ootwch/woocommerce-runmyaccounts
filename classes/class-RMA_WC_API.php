@@ -202,6 +202,27 @@ if ( !class_exists('RMA_WC_API') ) {
         }
 
         /**
+         * Append request URL from WP HTTP response object to an error message.
+         *
+         * @param string $message  Current message.
+         * @param mixed  $response Response array from wp_remote_*.
+         * @return string
+         */
+        private static function append_response_url_to_message( string $message, $response ): string {
+            $http_response = is_array( $response ) ? ( $response['http_response'] ?? null ) : null;
+            if ( ! is_object( $http_response ) || ! method_exists( $http_response, 'get_response_object' ) ) {
+                return $message;
+            }
+
+            $response_object = $http_response->get_response_object();
+            if ( is_object( $response_object ) && ! empty( $response_object->url ) ) {
+                $message .= ' ' . $response_object->url;
+            }
+
+            return $message;
+        }
+
+        /**
          * Read customer list from RMA
          *
          * @return mixed
@@ -238,10 +259,7 @@ if ( !class_exists('RMA_WC_API') ) {
 					$error_string = sanitize_text_field( $response->get_error_message() );
                     echo '<div id="message" class="error"><p>' . esc_html( $error_string ) . '</p></div>';
                 } else {
-                    foreach ( $response as $object ) {
-                        $message .= ' ' . $object->url;
-                        break;
-                    }
+                    $message = self::append_response_url_to_message( $message, $response );
                 }
 
                 $log_values = array(
@@ -339,10 +357,7 @@ if ( !class_exists('RMA_WC_API') ) {
                 if ( is_wp_error( $response ) ) {
                     $message .= ' ' . $response->get_error_message();
                 } else {
-                    foreach ( $response as $object ) {
-                        $message .= ' ' . $object->url;
-                        break;
-                    }
+                    $message = self::append_response_url_to_message( $message, $response );
                 }
 
                 $log_values = array(
@@ -452,15 +467,7 @@ if ( !class_exists('RMA_WC_API') ) {
                 if ( is_wp_error( $response ) ) {
                     $message .= ' ' . $response->get_error_message();
                 } else {
-                    $response = (array) $response['http_response'];
-                    foreach ( $response as $object ) {
-                        if ( null !== $object ) {
-                            $message .= ' ' . $object->url;
-                        } else {
-                            $message .= ' object is null';
-                        }
-                        break;
-                    }
+                    $message = self::append_response_url_to_message( $message, $response );
                 }
 
                 $log_values = array(
@@ -545,11 +552,7 @@ if ( !class_exists('RMA_WC_API') ) {
                 if ( is_wp_error( $response ) ) {
                     $message .= ' ' . $response->get_error_message();
                 } else {
-                    $response = $response['http_response'];
-                    foreach ( $response as $object ) {
-                        $message .= ' ' . $object->url;
-                        break;
-                    }
+                    $message = self::append_response_url_to_message( $message, $response );
                 }
 
                 $log_values = array(
@@ -631,13 +634,7 @@ if ( !class_exists('RMA_WC_API') ) {
                 if ( is_wp_error( $response ) ) {
                     $message .= ' ' . $response->get_error_message();
                 } else {
-                    $response = $response['http_response'];
-                    foreach ( $response as $object ) {
-                        if ( null !== $object ) {
-                            $message .= ' ' . $object->url;
-                        }
-                        break;
-                    }
+                    $message = self::append_response_url_to_message( $message, $response );
                 }
 
                 $log_values = array(
@@ -745,12 +742,7 @@ if ( !class_exists('RMA_WC_API') ) {
                 $message  = esc_html__( 'Response Code', 'rma-wc' ) . ' ' . wp_remote_retrieve_response_code( $response );
                 $message .= ' ' . wp_remote_retrieve_response_message( $response );
 
-                $response = (array) $response['http_response'];
-
-                foreach ( $response as $object ) {
-                    $message .= ' ' . $object->url;
-                    break;
-                }
+                $message = self::append_response_url_to_message( $message, $response );
 
                 $log_values = array(
                     'status'     => 'error',
@@ -814,12 +806,7 @@ if ( !class_exists('RMA_WC_API') ) {
 				$message = esc_html__( 'Response Code', 'run-my-accounts-for-woocommerce') . ' '. wp_remote_retrieve_response_code( $response );
 				$message .= ' '. wp_remote_retrieve_response_message( $response );
 
-				$response = (array) $response[ 'http_response' ];
-
-                foreach ( $response as $object ) {
-                    $message .= ' ' . $object->url;
-                    break;
-                }
+				$message = self::append_response_url_to_message( $message, $response );
 
                 $log_values = array(
 					'status' => 'error',
@@ -902,12 +889,7 @@ if ( !class_exists('RMA_WC_API') ) {
                 $message  = esc_html__( 'Response Code', 'rma-wc' ) . ' ' . wp_remote_retrieve_response_code( $response );
                 $message .= ' ' . wp_remote_retrieve_response_message( $response );
 
-                $response = (array) $response['http_response'];
-
-                foreach ( $response as $object ) {
-                    $message .= ' ' . $object->url;
-                    break;
-                }
+                $message = self::append_response_url_to_message( $message, $response );
 
                 $log_values = array(
                     'status'     => 'error',
@@ -1138,12 +1120,7 @@ if ( !class_exists('RMA_WC_API') ) {
                 $message  = esc_html__( 'Response Code', 'rma-wc' ) . ' ' . wp_remote_retrieve_response_code( $response );
                 $message .= ' ' . wp_remote_retrieve_response_message( $response );
 
-                $response = (array) $response['http_response'];
-
-                foreach ( $response as $object ) {
-                    $message .= ' ' . $object->url;
-                    break;
-                }
+                $message = self::append_response_url_to_message( $message, $response );
 
                 $log_values = array(
                     'status'     => 'error',
