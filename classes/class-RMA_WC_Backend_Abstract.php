@@ -365,29 +365,66 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
 
 		    $fields[ 'rma' ][ 'title' ] = __( 'Settings Run my Accounts', 'run-my-accounts-for-woocommerce' );
 
-            $RMA_WC_API = new RMA_WC_API();
-            $options = $RMA_WC_API->get_customers();
+            // Per default this tries to show a dropdown, but with thousands of customers it's too slow.
+            // So we're going to show a text input instead.
+            $show_dropdown = false;
 
-    	    if( !$options ) {
+            if ( $show_dropdown ) {
+                $RMA_WC_API = new RMA_WC_API();
+                $options    = $RMA_WC_API->get_customers();
 
-			    $fields[ 'rma' ][ 'fields' ][ 'rma_customer' ] = array(
-				    'label'       => __( 'Customer', 'run-my-accounts-for-woocommerce' ),
-				    'type'		  => 'select',
-				    'options'	  => array('' => __( 'Error while connecting to RMA. Please check your settings.', 'run-my-accounts-for-woocommerce' )),
-				    'description' => __( 'Select the corresponding RMA customer for this account.', 'run-my-accounts-for-woocommerce' )
-			    );
+    	        if( !$options ) {
 
-			    return $fields;
-		    }
+			        $fields[ 'rma' ][ 'fields' ][ 'rma_customer' ] = array(
+				        'label'       => __( 'Customer', 'run-my-accounts-for-woocommerce' ),
+				        'type'		  => 'select',
+				        'options'	  => array('' => __( 'Error while connecting to RMA. Please check your settings.', 'run-my-accounts-for-woocommerce' )),
+				        'description' => __( 'Select the corresponding RMA customer for this account.', 'run-my-accounts-for-woocommerce' )
+			        );
 
-		    $options = array('' => __( 'Select customer...', 'run-my-accounts-for-woocommerce' )) + $options;
+			        return $fields;
+		        }
 
-		    $fields[ 'rma' ][ 'fields' ][ 'rma_customer' ] = array(
-			    'label'       => __( 'Customer', 'run-my-accounts-for-woocommerce' ),
-			    'type'		  => 'select',
-			    'options'	  => $options,
-			    'description' => __( 'Select the corresponding RMA customer for this account.', 'run-my-accounts-for-woocommerce' )
-		    );
+		        $options = array('' => __( 'Select customer...', 'run-my-accounts-for-woocommerce' )) + $options;
+
+		        $fields[ 'rma' ][ 'fields' ][ 'rma_customer' ] = array(
+			        'label'       => __( 'Customer', 'run-my-accounts-for-woocommerce' ),
+			        'type'		  => 'select',
+			        'options'	  => $options,
+			        'description' => __( 'Select the corresponding RMA customer for this account.', 'run-my-accounts-for-woocommerce' )
+		        );
+            } else {
+                global $user_id;
+                $user_id = (int) $user_id;
+
+                $current_customer_id = get_user_meta( $user_id, 'rma_customer', true );
+                $name                = __( 'Customer not registered.', 'run-my-accounts-for-woocommerce' );
+
+                if ( empty( $current_customer_id ) ) {
+                    $fields[ 'rma' ][ 'fields' ][ 'rma_customer' ] = array(
+                        'label'       => __( 'Customer', 'run-my-accounts-for-woocommerce' ),
+                        'type'		  => 'input',
+                        'description' => __( 'Choose the corresponding RMA customer for this account.', 'run-my-accounts-for-woocommerce' ),
+                        'class'       => 'rma_customer',
+                    );
+
+                    return $fields;
+                }
+
+                $RMA_WC_API = new RMA_WC_API();
+                $customer   = $RMA_WC_API->get_customer( $current_customer_id );
+
+                if( ! empty( $customer ) ) {
+                    $name = $customer['name'];
+                }
+
+                $fields[ 'rma' ][ 'fields' ][ 'rma_customer' ] = array(
+                    'label'       => __( 'Customer', 'rma-wc' ),
+                    'type'		  => 'input',
+                    'description' => $name . ' (' . $current_customer_id . ')',
+                    'class'       => 'rma_customer',
+                );
+            }
 
 		    if ( !empty( $RMA_WC_API )) unset( $RMA_WC_API );
 
