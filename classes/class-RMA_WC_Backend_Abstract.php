@@ -84,6 +84,9 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
 	            // add bulk action to order page
                 add_filter( 'bulk_actions-edit-shop_order', array( $this, 'create_invoice_bulk_actions_edit_product'), 20, 1 );
                 add_filter( 'handle_bulk_actions-edit-shop_order', array( $this, 'create_invoice_handle_bulk_action_edit_shop_order'), 10, 3 );
+
+                // add invoice column to order page and make it searchable
+                add_filter( 'woocommerce_order_table_search_query_meta_keys', array( $this, 'search_column' ), 10, 1 );
                 add_action( 'admin_notices', array( $this, 'create_invoice_bulk_action_admin_notice' ) );
 
             }
@@ -280,13 +283,19 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
 		    switch ( $column ) {
 			    case 'rma_invoice' :
 
-				    echo $wc_order_obj->get_meta( '_rma_invoice', true );
+                    $invoice_number_wc = $wc_order_obj->get_meta( '_rma_invoice', true );
+                    echo esc_html( $invoice_number_wc );
 
 			    default:
 		    }
 
 
 	    }
+
+        public function search_column( $meta_keys ) {
+            $meta_keys[] = '_rma_invoice';
+            return $meta_keys;
+        }
 
         /**
          * Update user profile in Run my Accounts

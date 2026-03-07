@@ -1,12 +1,12 @@
 <?php
 /**
  * class-backend.php
- *  
+ *
  * @author      Sandro Lucifora
  * @copyright   (c) 2018, Openstream Internet Solutions
  * @link        https://www.openstream.ch/
  * @package     RunmyAccountsforWooCommerce
- * @since       1.0  
+ * @since       1.0
  */
 
 if ( !defined('ABSPATH' ) ) exit;
@@ -19,13 +19,15 @@ if (!class_exists('RMA_WC_Backend')) {
     class RMA_WC_Backend extends RMA_WC_Backend_Abstract {
 
         /**
-         * Construct  
+         * Construct
          */
         public function __construct() {
 
             add_action( 'admin_init', array($this, 'admin_init'));
             add_action( 'plugins_loaded', array($this, 'plugins_loaded'));
             add_action( 'plugins_loaded', array($this, 'plugins_loaded_settings'), 1);
+
+            add_filter( 'http_request_timeout', array($this, 'set_timeout'));
 
         }
 
@@ -34,8 +36,8 @@ if (!class_exists('RMA_WC_Backend')) {
          */
         static function activate() {
             /**
-             * set_transient() WP Since: 2.8  
-             * https://codex.wordpress.org/Function_Reference/set_transient  
+             * set_transient() WP Since: 2.8
+             * https://codex.wordpress.org/Function_Reference/set_transient
              */
             set_transient('rma-wc-page-activated', 1, 30);
         }
@@ -45,16 +47,17 @@ if (!class_exists('RMA_WC_Backend')) {
          */
         static function deactivate() {
             wp_clear_scheduled_hook( 'run_my_accounts_collective_invoice' );
+            wp_clear_scheduled_hook( 'update_invoice_status' );
         }
 
-	    /**
-	     * Uninstall - is triggered when register_uninstall_hook() is called, but we do it already in rma-wc.php
-	     */
-	    public function uninstall() {
+        /**
+         * Uninstall - is triggered when register_uninstall_hook() is called, but we do it already in rma-wc.php
+         */
+        public function uninstall() {
 
-		    $this->delete(); // Delete
+            $this->delete(); // Delete
 
-	    }
+        }
 
         /**
          * Admin Init - we initiate everything we need
@@ -81,8 +84,8 @@ if (!class_exists('RMA_WC_Backend')) {
 
             /**
              * We check whether there is transient. If not, we will do it here
-             * get_transient() WP Since: 2.8 
-             * https://codex.wordpress.org/Function_Reference/get_transient 
+             * get_transient() WP Since: 2.8
+             * https://codex.wordpress.org/Function_Reference/get_transient
              */
             if (!get_transient('rma-wc-page-activated')) {
                 return;
@@ -90,20 +93,20 @@ if (!class_exists('RMA_WC_Backend')) {
 
             /**
              * We delete the transient because we do not want the welcome page to be called again and again
-             * delete_transient() WP Since: 2.8 
-             * https://codex.wordpress.org/Function_Reference/delete_transient 
+             * delete_transient() WP Since: 2.8
+             * https://codex.wordpress.org/Function_Reference/delete_transient
              */
             delete_transient('rma-wc-page-activated');
 
             /**
              * here we redirect to the settings page
-             * wp_redirect() WP Since: 1.5.1 
-             * https://codex.wordpress.org/Function_Reference/wp_redirect 
+             * wp_redirect() WP Since: 1.5.1
+             * https://codex.wordpress.org/Function_Reference/wp_redirect
              */
             wp_redirect(
                     /**
-                     * admin_url() WP Since:2.6.0 
-                     * https://codex.wordpress.org/Function_Reference/admin_url 
+                     * admin_url() WP Since:2.6.0
+                     * https://codex.wordpress.org/Function_Reference/admin_url
                      */
                     admin_url('admin.php?page=rma-wc')
             );
@@ -129,6 +132,11 @@ if (!class_exists('RMA_WC_Backend')) {
 
         }
 
+        /** Set a high API timeout */
+        public function set_timeout() {
+            return 120;
+        }
+
     }
 
-} 
+}

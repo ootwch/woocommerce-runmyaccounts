@@ -11,6 +11,7 @@ include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Frontend.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Collective_Invoicing.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Payment.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Rental_And_Booking.php';
+include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Invoice.php';
 
 // LOAD BACKEND ////////////////////////////////////////////////////////////////
 
@@ -55,3 +56,6 @@ if ( class_exists( 'RedQ_Rental_And_Bookings' ) ) {
 	$RMA_RnB = new RMA_WC_Rental_And_Booking();
 
 }
+
+// RMA Invoice Status
+new RMA_WC_Invoice();
