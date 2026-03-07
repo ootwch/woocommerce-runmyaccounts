@@ -227,7 +227,7 @@ if ( ! class_exists('RMA_WC_Frontend' ) ) {
 
             }
 
-	        if( ( !$rma_client || !$rma_apikey ) ) {
+            if( ( ! defined( 'RMA_MANDANT_LIVE' ) && ! $rma_client ) || ( ! defined( 'RMA_APIKEY_LIVE' ) && ! $rma_apikey ) ) {
 
 		        $html = '<div class="notice notice-warning">';
 		        $html .= '<p>';
