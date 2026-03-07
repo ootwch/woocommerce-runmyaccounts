@@ -611,7 +611,7 @@ if ( !class_exists('RMA_WC_API') ) {
 							'message' => __( 'Could not create RMA customer dedicated guest account', 'run-my-accounts-for-woocommerce' )
 						);
 
-						(new RMA_WC_API)->write_log($log_values);
+						self::write_log($log_values);
 
 					}
 
@@ -752,7 +752,7 @@ if ( !class_exists('RMA_WC_API') ) {
 					'message' => __( 'Could not add shipping costs to invoice because of missing shipping costs product sku', 'run-my-accounts-for-woocommerce' )
 				);
 
-				(new RMA_WC_API)->write_log($log_values);
+				self::write_log($log_values);
 
 			}
 
@@ -873,10 +873,10 @@ if ( !class_exists('RMA_WC_API') ) {
 					'mode' => self::rma_mode(),
 					'message' => $message );
 
-				(new RMA_WC_API)->write_log($log_values);
+				self::write_log($log_values);
 
 				// send email on error
-				if ( 'error' == $status && SENDLOGEMAIL ) (new RMA_WC_API)->send_log_email($log_values);
+				if ( 'error' == $status && SENDLOGEMAIL ) self::send_log_email($log_values);
 
 			}
 
