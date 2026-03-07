@@ -27,8 +27,6 @@ if (!class_exists('RMA_WC_Backend')) {
             add_action( 'plugins_loaded', array($this, 'plugins_loaded'));
             add_action( 'plugins_loaded', array($this, 'plugins_loaded_settings'), 1);
 
-            add_filter( 'http_request_timeout', array($this, 'set_timeout'));
-
         }
 
         /**
@@ -130,11 +128,6 @@ if (!class_exists('RMA_WC_Backend')) {
 
             return $plugin_data[ 'Version' ];
 
-        }
-
-        /** Set a high API timeout */
-        public function set_timeout() {
-            return 120;
         }
 
     }

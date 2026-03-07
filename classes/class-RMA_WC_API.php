@@ -146,6 +146,21 @@ if ( !class_exists('RMA_WC_API') ) {
 		}
 
 		/**
+		 * Build request args for RMA HTTP calls.
+		 *
+		 * @param array $args Optional request args.
+		 * @return array
+		 */
+		private static function get_rma_http_args( array $args = array() ): array {
+			return wp_parse_args(
+				$args,
+				array(
+					'timeout' => 120,
+				)
+			);
+		}
+
+		/**
 		 * Append request URL from WP HTTP response object to an error message.
 		 *
 		 * @param string $message  Current message.
@@ -188,7 +203,10 @@ if ( !class_exists('RMA_WC_API') ) {
 			}
 
 			$url       = self::get_caller_url() . RMA_MANDANT . '/customers';
-			$response  = wp_remote_get( $url, self::get_authenticated_http_args() );
+            $response  = wp_remote_get(
+                $url,
+                self::get_rma_http_args( self::get_authenticated_http_args() )
+            );
 
 			// Check response code
 			if ( 200 <> wp_remote_retrieve_response_code( $response ) ){
@@ -299,7 +317,10 @@ if ( !class_exists('RMA_WC_API') ) {
 
 			$url       = self::get_caller_url() . RMA_MANDANT . '/parts';
 
-			$response  = wp_remote_get( $url, self::get_authenticated_http_args() );
+            $response  = wp_remote_get(
+                $url,
+                self::get_rma_http_args( self::get_authenticated_http_args() )
+            );
 
 			// Check response code
 			if ( 200 <> wp_remote_retrieve_response_code( $response ) ){
@@ -993,17 +1014,19 @@ if ( !class_exists('RMA_WC_API') ) {
 		 */
 		public static function send_xml_content( string $xml, string $url ): array {
 
-			$response = wp_safe_remote_post(
-				$url,
-				self::get_authenticated_http_args(
-					array(
-						'headers'          => array(
-						'Content-Type' => 'application/xml'
-						),
-						'body'             => $xml
-					)
-				)
-			);
+            $response = wp_safe_remote_post(
+                $url,
+                self::get_rma_http_args(
+                    self::get_authenticated_http_args(
+                        array(
+                            'headers'          => array(
+                                'Content-Type' => 'application/xml'
+                            ),
+                            'body'             => $xml
+                        )
+                    )
+                )
+            );
 
 			$response_code    = wp_remote_retrieve_response_code( $response );
 			$response_body    = wp_remote_retrieve_body( $response );
