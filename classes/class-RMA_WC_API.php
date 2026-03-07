@@ -597,7 +597,7 @@ if ( !class_exists('RMA_WC_API') ) {
 
 				$settings = get_option('wc_rma_settings');
 
-				if ( 1 == $settings[ 'rma-create-guest-customer' ] ) {
+				if ( 1 == ( $settings[ 'rma-create-guest-customer' ] ?? 0 ) ) {
 
 					$rma_customer_id = (new RMA_WC_API)->create_rma_customer('order', $order_id );
 
