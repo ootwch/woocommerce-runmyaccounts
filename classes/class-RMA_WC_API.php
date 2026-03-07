@@ -122,6 +122,30 @@ if ( !class_exists('RMA_WC_API') ) {
 		}
 
 		/**
+		 * Build authenticated request args for RMA API requests.
+		 *
+		 * @param array $args Optional request args.
+		 * @return array
+		 */
+		private static function get_authenticated_http_args( array $args = array() ): array {
+			$http_args = wp_parse_args( $args, array( 'timeout' => 120 ) );
+
+			$headers = array();
+			if ( isset( $http_args['headers'] ) && is_array( $http_args['headers'] ) ) {
+				$headers = $http_args['headers'];
+			}
+
+			$http_args['headers'] = array_merge(
+				$headers,
+				array(
+					'Authorization' => 'Bearer ' . RMA_APIKEY,
+				)
+			);
+
+			return $http_args;
+		}
+
+		/**
 		 * Read customer list from RMA
 		 *
 		 * @return mixed
@@ -143,8 +167,8 @@ if ( !class_exists('RMA_WC_API') ) {
 
 			}
 
-			$url       = self::get_caller_url() . RMA_MANDANT . '/customers?api_key=' . RMA_APIKEY;
-			$response  = wp_remote_get( $url );
+			$url       = self::get_caller_url() . RMA_MANDANT . '/customers';
+			$response  = wp_remote_get( $url, self::get_authenticated_http_args() );
 
 			// Check response code
 			if ( 200 <> wp_remote_retrieve_response_code( $response ) ){
@@ -256,9 +280,9 @@ if ( !class_exists('RMA_WC_API') ) {
 
 			}
 
-			$url       = self::get_caller_url() . RMA_MANDANT . '/parts?api_key=' . RMA_APIKEY;
+			$url       = self::get_caller_url() . RMA_MANDANT . '/parts';
 
-			$response  = wp_remote_get( $url );
+			$response  = wp_remote_get( $url, self::get_authenticated_http_args() );
 
 			// Check response code
 			if ( 200 <> wp_remote_retrieve_response_code( $response ) ){
@@ -735,7 +759,7 @@ if ( !class_exists('RMA_WC_API') ) {
 		 */
 		public static function create_xml_content( array $data, array $order_ids, bool $collective_invoice = false ): bool {
 
-			$url  = self::get_caller_url() . RMA_MANDANT . '/invoices?api_key=' . RMA_APIKEY;
+			$url  = self::get_caller_url() . RMA_MANDANT . '/invoices';
 
 			//create the xml document
 			$xml  = new DOMDocument('1.0', 'UTF-8');
@@ -859,7 +883,7 @@ if ( !class_exists('RMA_WC_API') ) {
 			$data   = self::$method( $id );
 
 			// build REST api url for Run my Accounts
-			$caller_url_customer = self::get_caller_url() . RMA_MANDANT . '/customers?api_key=' . RMA_APIKEY;
+			$caller_url_customer = self::get_caller_url() . RMA_MANDANT . '/customers';
 
 			//create the xml document
 			$xml_doc = new DOMDocument('1.0', 'UTF-8');
@@ -957,11 +981,13 @@ if ( !class_exists('RMA_WC_API') ) {
 
 			$response = wp_safe_remote_post(
 				$url,
-				array(
-					'headers'          => array(
+				self::get_authenticated_http_args(
+					array(
+						'headers'          => array(
 						'Content-Type' => 'application/xml'
-					),
-					'body'             => $xml
+						),
+						'body'             => $xml
+					)
 				)
 			);
 
