@@ -219,14 +219,107 @@ if ( !class_exists('RMA_WC_API') ) {
 
 					$error_string = sanitize_text_field( $response->get_error_message() );
 					echo '<div id="message" class="error"><p>' . esc_html( $error_string ) . '</p></div>';
+                } else {
+                    $message = self::append_response_url_to_message( $message, $response );
+                }
+
+                $log_values = array(
+                    'status'     => 'error',
+                    'section_id' => '',
+                    'section'    => esc_html_x( 'Get Customers', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'mode'       => self::rma_mode(),
+                    'message'    => $message,
+                );
+
+                self::write_log( $log_values );
+
+					return false;
+
+            } else {
+
+                libxml_use_internal_errors( true );
+
+                $body = wp_remote_retrieve_body( $response );
+                $xml  = simplexml_load_string( $body );
+
+                if ( ! $xml ) {
+                    // ToDO: Add this information to error log
+                    foreach ( libxml_get_errors() as $error ) {
+                        echo "\t", $error->message;
+                    }
+
+                    return false;
+
+                } else {
+                    // Parse response
+                    $array = json_decode( json_encode( (array) $xml ), true );
+
+                    // Transform into array
+                    foreach ( $array as $value ) {
+
+                        foreach ( $value as $key => $customer ) {
+                            $number = $customer['customernumber'];
+
+                            if ( is_array( $customer['name'] ) ) {
+
+                                if ( is_array( $customer['firstname'] ) ||
+                                     is_array( $customer['lastname'] ) ) {
+                                    $name = '';
+                                } else {
+                                    $name = $customer['firstname'] . ' ' . $customer['lastname'];
+                                }
+                            } else {
+                                $name = $customer['name'];
+                            }
+
+                            $customers[ $number ] = $name . ' ( ' . $number . ' )';
+                        }
+                    }
+
+                    return ( ! empty( $customers ) ? $customers : false );
+                }
+            }
+        }
+
+        /**
+         * Read customer data from RMA
+         *
+         * @return mixed
+         */
+        public static function get_customers_data() {
+
+            if ( ! RMA_MANDANT || ! RMA_APIKEY ) {
+
+                $log_values = array(
+                    'status'     => 'error',
+                    'section_id' => '',
+                    'section'    => esc_html_x( 'Get Customer', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'mode'       => self::rma_mode(),
+                    'message'    => esc_html__( 'Missing API data', 'run-my-accounts-for-woocommerce' ),
+                );
+
+                self::write_log( $log_values );
 
 					return false;
 
 				}
 
-				$response = (array) $response['http_response'];
+            $url      = self::get_caller_url() . RMA_MANDANT . '/customers';
+            $response = wp_remote_get( $url, self::get_rma_http_args( self::get_authenticated_http_args() ) );
 
+            $customers = array();
+
+            // Check response code
+            if ( 200 <> wp_remote_retrieve_response_code( $response ) ) {
+
+                $message  = esc_html__( 'Response Code', 'run-my-accounts-for-woocommerce' ) . ' ' . wp_remote_retrieve_response_code( $response );
+                $message .= ' ' . wp_remote_retrieve_response_message( $response );
+
+                if ( is_wp_error( $response ) ) {
+                    $message .= ' ' . $response->get_error_message();
+                } else {
 				$message = self::append_response_url_to_message( $message, $response );
+                }
 
 				$log_values = array(
 					'status' => 'error',
@@ -250,7 +343,7 @@ if ( !class_exists('RMA_WC_API') ) {
 				if ( !$xml ) {
 					// ToDO: Add this information to error log
 					foreach( libxml_get_errors() as $error ) {
-						echo "\t", esc_html( $error->message );
+						echo "\t", $error->message;
 					}
 
 					return false;
@@ -279,17 +372,364 @@ if ( !class_exists('RMA_WC_API') ) {
 							}
 							else {
 								$name   = $customer['name'];
+                                $customers[ $number ]['name'] = $customer['name'];
 							}
+                            $customers[ $number ]['rmaid']          = $customer['id'] ?? '';
+                            $customers[ $number ]['customernumber'] = $customer['customernumber'] ?? '';
+                            $customers[ $number ]['display_name']   = $name . ' ( ' . $number . ' )';
+                            $customers[ $number ]['email']          = empty( $customer['email'] ?? '' ) ? '' : $customer['email'];
+                            $customers[ $number ]['phone']          = empty( $customer['phone'] ?? '' ) ? '' : $customer['phone'];
+                            $customers[ $number ]['mobile']         = empty( $customer['mobile'] ?? '' ) ? '' : $customer['mobile'];
+                            $customers[ $number ]['firstname']      = empty( $customer['firstname'] ?? '' ) ? '' : $customer['firstname'];
+                            $customers[ $number ]['lastname']       = empty( $customer['lastname'] ?? '' ) ? '' : $customer['lastname'];
 
-							$customers[ $number ] = $name . ' ( ' . $number . ' )';
+                            $customers[ $number ]['typeofcontact'] = $customer['typeofcontact'] ?? '';
+                            $customers[ $number ]['gender']        = $customer['gender'] ?? '';
 						}
-
 					}
 
 					return ( !empty( $customers ) ? $customers : false );
 				}
 			}
 		}
+
+        /**
+         * Read info on one customer
+         */
+        public function get_customer( $rma_customer_id ) {
+            if ( ! RMA_MANDANT || ! RMA_APIKEY ) {
+
+                $log_values = array(
+                    'status'     => 'error',
+                    'section_id' => '',
+                    'section'    => esc_html_x( 'Get Customer', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'mode'       => self::rma_mode(),
+                    'message'    => esc_html__( 'Missing API data', 'run-my-accounts-for-woocommerce' ),
+                );
+
+                self::write_log( $log_values );
+
+                return false;
+
+            }
+
+            $url = self::get_caller_url() . RMA_MANDANT . '/customers/' . sanitize_key( $rma_customer_id );
+
+            $response = wp_remote_get( $url, self::get_rma_http_args( self::get_authenticated_http_args() ) );
+
+            // Check response code
+            if ( 200 <> wp_remote_retrieve_response_code( $response ) ) {
+
+                $message  = esc_html__( 'Response Code', 'run-my-accounts-for-woocommerce' ) . ' ' . wp_remote_retrieve_response_code( $response );
+                $message .= ' ' . wp_remote_retrieve_response_message( $response );
+
+                if ( is_wp_error( $response ) ) {
+                    $message .= ' ' . $response->get_error_message();
+                } else {
+                    $message = self::append_response_url_to_message( $message, $response );
+                }
+
+                $log_values = array(
+                    'status'     => 'error',
+                    'section_id' => '',
+                    'section'    => esc_html_x( 'Get Customer', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'mode'       => self::rma_mode(),
+                    'message'    => $message,
+                );
+
+                self::write_log( $log_values );
+
+                return false;
+
+            } else {
+
+                libxml_use_internal_errors( true );
+
+                $body = wp_remote_retrieve_body( $response );
+                $xml  = simplexml_load_string( $body );
+
+                if ( ! $xml ) {
+                    // ToDO: Add this information to error log
+                    foreach ( libxml_get_errors() as $error ) {
+                        echo "\t", $error->message;
+                    }
+
+                    return false;
+
+                } else {
+                    // Parse response
+                    $customer = json_decode( json_encode( (array) $xml ), true );
+                    return ( ! empty( $customer ) ? $customer : false );
+                }
+            }
+        }
+
+
+        /**
+         * Read invoices
+         *
+         * @param mixed  $rma_customer_id customernumber.
+         * @param string $from YYYY-MM-DD.
+         * @param mixed  $to YYYY-MM-DD.
+         * @return mixed .
+         */
+        public function get_customer_invoices( $rma_customer_id = null, $from = '1900-01-01', $to = null ) {
+            if ( ! RMA_MANDANT || ! RMA_APIKEY ) {
+
+                $log_values = array(
+                    'status'     => 'error',
+                    'section_id' => '',
+                    'section'    => esc_html_x( 'Get Customer', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'mode'       => self::rma_mode(),
+                    'message'    => esc_html__( 'Missing API data', 'run-my-accounts-for-woocommerce' ),
+                );
+
+                self::write_log( $log_values );
+
+                return false;
+
+            }
+
+            $query_args = array(
+                'from' => sanitize_key( $from ),
+            );
+            if ( ! empty( $rma_customer_id ) ) {
+                $query_args['customer_number'] = sanitize_key( $rma_customer_id );
+            }
+            if ( ! empty( $to ) ) {
+                $query_args['to'] = sanitize_key( $to );
+            }
+            $url      = add_query_arg( $query_args, self::get_caller_url() . RMA_MANDANT . '/invoices' );
+            $response = wp_remote_get( $url, self::get_rma_http_args( self::get_authenticated_http_args() ) );
+
+            // Check response code
+            if ( 200 <> wp_remote_retrieve_response_code( $response ) ) {
+
+                $message  = esc_html__( 'Response Code', 'run-my-accounts-for-woocommerce' ) . ' ' . wp_remote_retrieve_response_code( $response );
+                $message .= ' ' . wp_remote_retrieve_response_message( $response );
+
+                if ( is_wp_error( $response ) ) {
+                    $message .= ' ' . $response->get_error_message();
+                } else {
+                    $message = self::append_response_url_to_message( $message, $response );
+                }
+
+                $log_values = array(
+                    'status'     => 'error',
+                    'section_id' => '',
+                    'section'    => esc_html_x( 'Get Customer Invoice', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'mode'       => self::rma_mode(),
+                    'message'    => $message,
+                );
+
+                self::write_log( $log_values );
+
+                return false;
+
+            } else {
+
+                libxml_use_internal_errors( true );
+
+                $body = wp_remote_retrieve_body( $response );
+                $xml  = simplexml_load_string( $body );
+
+                if ( false === $xml ) {
+                    // ToDO: Add this information to error log
+                    foreach ( libxml_get_errors() as $error ) {
+                        echo "\t", $error->message;
+                    }
+
+                    return false;
+
+                } else {
+                    // Parse response.
+                    $invoices = array();
+                    foreach ( $xml->invoice as $invoice ) {
+                        $invoices[] = json_decode( json_encode( (array) $invoice ), true );
+                    }
+
+                    return ( ! empty( $invoices ) ? array( 'invoice' => $invoices ) : array( 'invoice' => array() ) );
+                }
+            }
+        }
+
+        /**
+         * Read vendor invoices
+         *
+         * @return mixed .
+         */
+        public function get_vendor_invoices( $from = '1900-01-01', $to = null ) {
+            if ( ! RMA_MANDANT || ! RMA_APIKEY ) {
+
+                $log_values = array(
+                    'status'     => 'error',
+                    'section_id' => '',
+                    'section'    => esc_html_x( 'Get Vendor Invoices', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'mode'       => self::rma_mode(),
+                    'message'    => esc_html__( 'Missing API data', 'run-my-accounts-for-woocommerce' ),
+                );
+
+                self::write_log( $log_values );
+
+                return false;
+
+            }
+
+            $query_args = array(
+                'from' => sanitize_key( $from ),
+            );
+            if ( ! empty( $to ) ) {
+                $query_args['to'] = sanitize_key( $to );
+            }
+            $url      = add_query_arg( $query_args, self::get_caller_url() . RMA_MANDANT . '/payables' );
+            $response = wp_remote_get( $url, self::get_rma_http_args( self::get_authenticated_http_args() ) );
+
+            // Check response code.
+            if ( 200 <> wp_remote_retrieve_response_code( $response ) ) {
+
+                $message  = esc_html__( 'Response Code', 'run-my-accounts-for-woocommerce' ) . ' ' . wp_remote_retrieve_response_code( $response );
+                $message .= ' ' . wp_remote_retrieve_response_message( $response );
+
+                if ( is_wp_error( $response ) ) {
+                    $message .= ' ' . $response->get_error_message();
+                } else {
+                    $message = self::append_response_url_to_message( $message, $response );
+                }
+
+                $log_values = array(
+                    'status'     => 'error',
+                    'section_id' => '',
+                    'section'    => esc_html_x( 'Get Vendor Invoices', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'mode'       => self::rma_mode(),
+                    'message'    => $message,
+                );
+
+                self::write_log( $log_values );
+
+                return false;
+
+            } else {
+
+                libxml_use_internal_errors( true );
+
+                $body = wp_remote_retrieve_body( $response );
+                $xml  = simplexml_load_string( $body );
+
+                if ( false === $xml ) {
+                    // ToDO: Add this information to error log
+                    foreach ( libxml_get_errors() as $error ) {
+                        echo "\t", $error->message;
+                    }
+
+                    return false;
+
+                } else {
+                    // Parse response.
+                    $payables = array();
+                    foreach ( $xml->payable as $payable ) {
+                        $payables[] = json_decode( json_encode( (array) $payable ), true );
+                    }
+
+                    return ( ! empty( $payables ) ? array( 'payable' => $payables ) : array( 'payable' => array() ) );
+
+                }
+            }
+        }
+
+        /**
+         * Fetch PDF File for invoice
+         *
+         * This function also verifies that the fetched invoice belongs
+         * to the current user.
+         */
+        public function get_invoice_pdf( $rma_invoice_number ) {
+            if ( ! RMA_MANDANT || ! RMA_APIKEY ) {
+
+                $log_values = array(
+                    'status'     => 'error',
+                    'section_id' => '',
+                    'section'    => esc_html_x( 'Get Invoice PDF', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'mode'       => self::rma_mode(),
+                    'message'    => esc_html__( 'Missing API data', 'run-my-accounts-for-woocommerce' ),
+                );
+
+                self::write_log( $log_values );
+
+                return false;
+
+            }
+
+            $requested_rma_invoice_number = strtoupper( sanitize_key( $rma_invoice_number ) );
+
+            // Verify that the current user is supposed to have access to this invoice.
+            $url          = self::get_caller_url() . RMA_MANDANT . '/invoices/' . $requested_rma_invoice_number;
+            $xml_response = wp_remote_get( $url, self::get_rma_http_args( self::get_authenticated_http_args() ) );
+            // TODO: Better error handling on timeouts etc. Is 120 a good value?
+            if ( is_wp_error( $xml_response ) ) {
+                $message = $xml_response->get_error_message();
+                return $message;
+            }
+
+            libxml_use_internal_errors( true );
+            $body    = wp_remote_retrieve_body( $xml_response );
+            $xml     = simplexml_load_string( $body );
+            $invoice = json_decode( json_encode( (array) $xml ), true );
+
+            $rma_user_remote  = $invoice['customer']['customernumber'];
+            $rma_user_current = get_user_meta( get_current_user_id(), 'rma_customer', true );
+
+            // User does not match or invoice does not exist for this user
+            if ( $rma_user_remote !== $rma_user_current ) {
+                $log_values = array(
+                    'status'     => 'error',
+                    'section_id' => '',
+                    'section'    => esc_html_x( 'Get Invoice PDF', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'mode'       => self::rma_mode(),
+                    'message'    => 'Download failed / invoice does not exist for this user',
+                );
+
+                self::write_log( $log_values );
+                return false;
+            }
+
+            $url      = self::get_caller_url() . RMA_MANDANT . '/invoices/' . $requested_rma_invoice_number . '/pdf';
+            $response = wp_remote_get( $url, self::get_rma_http_args( self::get_authenticated_http_args() ) );
+
+            // Check response code
+            if ( 200 <> wp_remote_retrieve_response_code( $response ) ) {
+
+                $message  = esc_html__( 'Response Code', 'run-my-accounts-for-woocommerce' ) . ' ' . wp_remote_retrieve_response_code( $response );
+                $message .= ' ' . wp_remote_retrieve_response_message( $response );
+
+                $message = self::append_response_url_to_message( $message, $response );
+
+                $log_values = array(
+                    'status'     => 'error',
+                    'section_id' => '',
+                    'section'    => esc_html_x( 'Get Invoice PDF', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'mode'       => self::rma_mode(),
+                    'message'    => $message,
+                );
+
+                self::write_log( $log_values );
+
+                return false;
+
+            } else {
+
+                libxml_use_internal_errors( true );
+
+                $body         = wp_remote_retrieve_body( $response );
+                $content_type = wp_remote_retrieve_header( $response, 'content-type' );
+
+                if ( 'application/pdf' !== $content_type ) {
+                    // ToDo: Add this information to error log
+                    return false;
+                } else {
+                    return ( ! empty( $body ) ? $body : false );
+                }
+            }
+        }
 
 		/**
 		 * Read parts list from RMA
