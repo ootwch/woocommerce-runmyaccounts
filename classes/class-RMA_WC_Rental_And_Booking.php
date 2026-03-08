@@ -1,6 +1,8 @@
 <?php
 
-if ( ! defined('ABSPATH') ) exit;
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
 
 /**
  * Class for extending features for plugin WooCommerce Rental & Booking System
@@ -10,144 +12,208 @@ if ( ! defined('ABSPATH') ) exit;
  */
 class RMA_WC_Rental_And_Booking {
 
-    public function __construct() {
+	const XML_NL = '&#xA;';
 
-        self::init();
+	public function __construct() {
 
-    }
+		self::init();
+	}
 
-    /**
-     * Initialize stuff like variables, filter, hooks
-     *
-     * @return void
-     *
-     * @since 1.7.0
-     *
-     * @author Sandro Lucifora
-     */
-    public function init() {
+	/**
+	 * Initialize stuff like variables, filter, hooks
+	 *
+	 * @return void
+	 *
+	 * @since 1.7.0
+	 *
+	 * @author Sandro Lucifora
+	 */
+	public function init() {
 
-        add_filter( 'woocommerce_product_data_tabs', array( $this, 'woocommerce_product_data_tabs' ) );
+		add_filter( 'woocommerce_product_data_tabs', array( $this, 'woocommerce_product_data_tabs' ) );
 
-        add_filter( 'rma_invoice_part', array( $this, 'modify_rma_invoice_part' ), 10, 2 );
+		add_filter( 'rma_invoice_part', array( $this, 'modify_rma_invoice_part' ), 15, 2 );
+	}
 
-    }
+	/**
+	 * Shows additional product tab for product type
+	 *
+	 * @param $tabs
+	 *
+	 * @return array
+	 *
+	 * @since 1.7.0
+	 *
+	 * @author Sandro Lucifora
+	 */
+	public function woocommerce_product_data_tabs( $tabs ): array {
 
-    /**
-     * Shows additional product tab for product type
-     *
-     * @param $tabs
-     *
-     * @return array
-     *
-     * @since 1.7.0
-     *
-     * @author Sandro Lucifora
-     */
-    public function woocommerce_product_data_tabs( $tabs ): array {
+		$tabs['inventory']['class'][] = 'show_if_redq_rental';
 
-        $tabs[ 'inventory' ][ 'class' ][] = 'show_if_redq_rental';
+		return $tabs;
+	}
 
-        return $tabs;
+	/**
+	 * Modifies invoice part with rental details
+	 *
+	 * @param array    $part    The original part array
+	 * @param int|null $item_id The item id of this order part
+	 *
+	 * @return array         Modified part
+	 * @throws Exception
+	 *
+	 * @since 1.7.0
+	 *
+	 * @author Sandro Lucifora
+	 */
+	public function modify_rma_invoice_part( array $part, ?int $item_id ): array {
 
-    }
+		$datetime_format = get_option( 'date_format' ) . ' ' . get_option( 'time_format' );
 
-    /**
-     * Modifies invoice part with rental details
-     *
-     * @param array    $part    The original part array
-     * @param int|null $item_id The item id of this order part
-     *
-     * @return array         Modified part
-     * @throws Exception
-     *
-     * @since 1.7.0
-     *
-     * @author Sandro Lucifora
-     */
-    public function modify_rma_invoice_part( array $part, ?int $item_id ): array {
+		// bail if item_id is not an int (like shipping costs can be)
+		if ( null === $item_id ) {
 
-        // bail if item_id is not an int (like shipping costs can be)
-        if( null === $item_id ) {
+			return $part;
 
-            return $part;
+		}
 
-        }
+		$order_id     = wc_get_order_id_by_order_item_id( $item_id );
+		$order        = wc_get_order( $order_id );
+		$item         = $order->get_item( $item_id );
+		$item_product = $item->get_product();
 
-        // get values
-        $days            = wc_get_order_item_meta( $item_id, '_return_hidden_days' );
-        $total           = wc_get_order_item_meta( $item_id, '_line_total' );
-        $tax             = wc_get_order_item_meta( $item_id, '_line_tax' );
-        $pickup_location = wc_get_order_item_meta( $item_id, 'Pickup Location' );
-        $pickup_date     = wc_get_order_item_meta( $item_id, 'Pickup Date & Time' );
-        $return_date     = wc_get_order_item_meta( $item_id, 'Return Date & Time' );
-        $total_days      = wc_get_order_item_meta( $item_id, 'Total Days' );
+		// Bail if this is not a rental product.
+		if ( ! $item_product->is_type( 'redq_rental' ) ) {
+			return $part;
+		}
 
-        // bail if we do not get all RnB meta data
-        if( !$pickup_location || !$pickup_date || !$return_date || $total_days ) {
+		// Set the article to the rental article for all rental bookings.
+		$settings = get_option( 'wc_rma_settings' );
 
-            return $part;
+		$item_rental_days_and_cost = $item->get_meta( 'rnb_hidden_order_meta' )['rental_days_and_costs'] ?? false;
 
-        }
+		if ( false === $item_rental_days_and_cost ) {
+			// bail.
+			return $part;
+		}
 
-        // Set the article to the rental article for all rental bookings.
-        $settings               = get_option( 'wc_rma_settings' );
-        $rental_booking_article = is_array( $settings ) && ! empty( $settings[ 'rma-product-rnb-rental-article' ] )
-            ? $settings[ 'rma-product-rnb-rental-article' ]
-            : '';
-        if ( ! empty( $rental_booking_article ) ) {
-            $part[ 'partnumber' ] = $rental_booking_article;
-        }
+		$is_cancelation_order = ( ! empty( $item_rental_days_and_cost['price_breakdown']['order_modification_type'] ) ) && 'cancelation' === $item_rental_days_and_cost['price_breakdown']['order_modification_type'];
 
-        // Set the projectnumber to the sku for the rental articles.
-        $projectnumber = '';
-        $order_id      = wc_get_order_id_by_order_item_id( $item_id );
-        $order         = $order_id ? wc_get_order( $order_id ) : false;
-        if ( $order ) {
-            $item = $order->get_item( $item_id );
-            if ( $item && is_callable( array( $item, 'get_product' ) ) ) {
-                $product = $item->get_product();
-                if ( $product ) {
-                    $sku = $product->get_sku();
-                    if ( ! empty( $sku ) ) {
-                        $projectnumber = $sku;
-                    }
-                }
-            }
-        }
-        if ( empty( $projectnumber ) ) {
-            wp_die(
-                sprintf(
-                    /* translators: %d: WooCommerce order item ID. */
-                    esc_html__( 'RMA rental invoice aborted: missing project number (SKU) for order item %d. Please set a SKU on the rental product.', 'run-my-accounts-for-woocommerce' ),
-                    (int) $item_id
-                )
-            );
-        }
-        $part[ 'projectnumber' ] = $projectnumber;
+		$canceled_order_id = null;
+		if ( $is_cancelation_order ) {
 
-        // set line total price
-        if( wc_tax_enabled() ) {
+			if ( ! isset( $settings['rma-product-rnb-cancelation-article'] ) ) {
+				wp_die( 'RMA Rental Booking Cancelation Article is not configured' );
+			}
+			$rental_booking_article = $settings['rma-product-rnb-cancelation-article'];
 
-            $part[ 'sellprice' ] = round( $total + $tax, 2 );
+			$canceled_order_id = $item_rental_days_and_cost['price_breakdown']['order_modification_original_order'];
+			$canceled_order    = wc_get_order( $canceled_order_id );
 
-        }
-        else {
+			$canceled_order_booking_time = wp_date( $datetime_format, $canceled_order->get_date_created() );
+		} else {
+			$rental_booking_article = $settings['rma-product-rnb-rental-article'];
+			if ( ! isset( $rental_booking_article ) ) {
+				wp_die( 'RMA Rental Booking Article is not configured' );
+			}
+		}
 
-            $part[ 'sellprice' ] = $total;
+		$part['partnumber'] = $rental_booking_article;
 
-        }
+		// Set the projectnumber to the sku for the rental articles.
+		$sku = $item_product->get_sku();
+		if ( ! empty( $sku ) ) {
+			$part['projectnumber'] = $sku;
+		} else {
+			$log_values = array(
+				'status'     => 'error',
+				'section_id' => $item_product->get_id(),
+				'section'    => $item_product->get_name(),
+				'mode'       => RMA_WC_API::rma_mode(),
+				'message'    => 'Product ' . $item_product->get_name() . ' does not have a valid SKU.',
+			);
 
-        // build multiline description
-        $part[ 'description' ] = $part[ 'description' ] . "\n" .
-                                 sprintf( __( 'Pickup Location: %s', 'run-my-accounts-for-woocommerce' ), $pickup_location ) . "\n" .
-                                 sprintf( __( 'Pickup Date/Time: %s', 'run-my-accounts-for-woocommerce' ), $pickup_date ) . "\n" .
-                                 sprintf( __( 'Return Date/Time: %s', 'run-my-accounts-for-woocommerce' ), $return_date ) . "\n" .
-                                 sprintf( __( 'Total Days: %1$s (%2$s)', 'run-my-accounts-for-woocommerce' ), $days, $total_days );
+			RMA_WC_API::write_log( $log_values );
+		}
 
-        // return modified array
-        return $part;
+		// get values.
+		$total = wc_get_order_item_meta( $item_id, '_line_total' );
+		$tax   = wc_get_order_item_meta( $item_id, '_line_tax' );
 
-    }
+		$part_title = wc_get_order_item_meta( $item_id, 'Choose Inventory' );
+
+		$rnb_order_meta = wc_get_order_item_meta( $item_id, 'rnb_hidden_order_meta' );
+
+		$confirmed_datetime_formatted = $order->get_date_created()->format( $datetime_format );
+
+		// build multiline description.
+		$part['description'] = '';
+
+		if ( $is_cancelation_order ) {
+
+
+			$part['description'] = esc_html(
+				sprintf(
+					/* translators: Newline: '&#xA;', %1$s: order_id, %2$s: origininal order id, %3$s: product (boat) name, %4$s: cancelation time */
+					__( '#%1$s: Cancellation of reservation #%2$s of %3$s. Cancellation time: %4$s.', 'woocommerce-sailcom' ),
+					$order_id,
+					$canceled_order_id,
+					$part_title,
+					$confirmed_datetime_formatted,
+				),
+			);
+
+
+		} else {
+
+			$pickup_time                = new \DateTime( $rnb_order_meta['pickup_date'] . ' ' . $rnb_order_meta['pickup_time'], wp_timezone() );
+			$pickup_datetime_formatted  = wp_date( $datetime_format, $pickup_time->format( 'U' ) );
+			$dropoff_time               = new \DateTime( $rnb_order_meta['dropoff_date'] . ' ' . $rnb_order_meta['dropoff_time'], wp_timezone() );
+			$dropoff_datetime_formatted = wp_date( $datetime_format, $dropoff_time->format( 'U' ) );
+
+			// Use self::XML_NL for newlines.
+
+			$part['description'] = esc_html(
+				sprintf(
+					/* translators: %1$s: order_id, %2$s: product (boat) name, %3$s: reservation start datetime %4$s: reservation end datetime */
+					__( '#%1$s: Booking of %2$s, %3$s until %4$s', 'woocommerce-sailcom' ),
+					$order_id,
+					$part_title,
+					$pickup_datetime_formatted,
+					$dropoff_datetime_formatted
+				),
+			);
+
+			// $part['description']  = '#' . $order_id . ': ' . esc_html__( 'Booking of ', 'woocommerce-sailcom' ) . self::XML_NL;
+			// $part['description'] .= $part_title . self::XML_NL . $pickup_datetime_formatted . ' - ' . $dropoff_datetime_formatted;
+		}
+
+		// $part['description'] .= self::XML_NL . '(' . $confirmed_datetime_formatted . '/' . $order->get_customer_ip_address() . ')';
+
+		// set line total price.
+		$total = $item->get_total(); // Gives total of line item, which is the sustainable variant.
+
+		if ( wc_tax_enabled() ) {
+
+			$part['sellprice'] = round( $total + $tax, 2 );
+
+		} else {
+
+			$part['sellprice'] = $total;
+
+		}
+
+		// Attaching order notes.
+		$notes = $order->get_customer_note();
+
+		if ( ! empty( $notes ) ) {
+
+			$notes = str_replace( PHP_EOL, self::XML_NL, $notes );
+
+			$part['itemnote'] = wp_kses_post( $notes );
+		}
+
+		return $part;
+	}
 
 }
