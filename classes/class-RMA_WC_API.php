@@ -900,7 +900,7 @@ if ( !class_exists('RMA_WC_API') ) {
 
 			endif;
 
-			return $data;
+            return apply_filters( 'rma_invoice_parts', $data );
 
 		}
 

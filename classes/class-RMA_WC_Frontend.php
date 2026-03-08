@@ -53,6 +53,9 @@ if ( ! class_exists('RMA_WC_Frontend' ) ) {
                         ), 90, 3);
                         break;
 
+                    case 'collective':
+                        // do not fire anything on status change.
+                        break;
                     // trigger invoice creation when trigger is set 'immediately' or no selection was done on settings page
                     case 'immediately':
                     default:

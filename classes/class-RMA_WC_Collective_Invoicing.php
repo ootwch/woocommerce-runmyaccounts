@@ -21,6 +21,8 @@ class RMA_WC_Collective_Invoicing {
 
         add_action( 'run_my_accounts_collective_invoice', array( $this, 'create_collective_invoice' ) );
 
+        // Collective invoices should have the order_id in the name.
+        add_filter( 'rma_invoice_part', array( $this, 'add_order_id_to_description' ), 10, 2 );
     }
 
     /**
@@ -96,6 +98,10 @@ class RMA_WC_Collective_Invoicing {
                 break;
             case 'month' :
                 $next_date_ts_utc = strtotime("first $weekday of next month");
+                break;
+            case 'manually':
+                // Wait forever (until 2130) to trigger automatically.
+                $next_date_ts_utc = strtotime( '01/01/2130' );
                 break;
         }
 
@@ -178,11 +184,16 @@ class RMA_WC_Collective_Invoicing {
      * Collecting completed invoices, sorted by customer,
      * which were still not invoiced
      *
+     * @param array $customers List of customer id's for which orders are listed.
      * @return array
      *
      * @since 1.7.0
      */
-    public function get_not_invoiced_orders(): array {
+    public function get_not_invoiced_orders( array $customers = array() ): array {
+
+        // Keep cache local, otherwise everything is replaced by orders.
+        wp_cache_add_non_persistent_groups( 'orders' );
+        wp_cache_add_non_persistent_groups( 'order-items' );
 
         switch ( $this->settings[ 'collective_invoice_span' ] ) {
             case 'per_week':
@@ -196,8 +207,7 @@ class RMA_WC_Collective_Invoicing {
                 break;
         }
 
-	    $orders_no_invoice = wc_get_orders(
-		    array(
+$order_args = array(
 			    'type' => 'shop_order',
 			    'limit' => -1,
 			    'status' => array(
@@ -211,17 +221,25 @@ class RMA_WC_Collective_Invoicing {
 						    'compare' => 'NOT EXISTS',
 					    ),
 				    )
-			    )
-		    )
+                ),
+                'orderby' => 'ID',
+                'order'   => 'ASC',
+                'return'  => 'ids',
 	    );
+
+        if ( ! empty( $customers ) ) {
+                    $order_args['customer_id'] = $customers;
+        }
+
+        $orders_no_invoice = wc_get_orders( $order_args );
 
         $cumulated_orders_by_customer_id = array();
 
         // loop through orders and create an associative array with orders for customer
-        foreach ( $orders_no_invoice as $key => $order ) {
+        foreach ( $orders_no_invoice as $key => $order_id ) {
 
             // get values
-            $order          = wc_get_order( $order->ID );
+            $order          = wc_get_order( $order_id );
             $order_id       = $order->get_id();
             $user_id        = $order->get_user_id( $order_id );
             $paid_date      = $order->get_date_completed( $order_id );
@@ -239,11 +257,24 @@ class RMA_WC_Collective_Invoicing {
                 $cumulated_orders_by_customer_id[ $user_id ][ $tax_included ? 'tax' : 'no_tax' ][ $payment_method ] = array_merge( $a, $b );
 
             }
-
+            // Delete the order cache once the order is processed, in order to keep memory consumption lower.
+            RMA_WC_API::delete_order_cache( $order );
         }
 
         return $cumulated_orders_by_customer_id;
+    }
 
+    /**
+     * Show admin notice.
+     *
+     * @return void
+     */
+    public function admin_notice_too_many_invoices() {
+        ?>
+        <div class="notice is-dismissible notice-info">
+            <p>More than 500 invoices ready. Only showing the first 500; use filters to show more invoices.</p>
+        </div>
+        <?php
     }
 
     /**
@@ -255,16 +286,17 @@ class RMA_WC_Collective_Invoicing {
      * @throws Exception
      * @since 1.7.0
      */
-    public function create_collective_invoice(): array {
+    public function create_collective_invoice( bool $force = false, bool $display = false, $description = false, $customers = array() ): array {
         // reset array
         $order_date_created = array();
         $created_invoices   = array();
+        $display_invoices   = array();
 
         // get the timestamp with the current date, but without time
         $current_date = strtotime(gmdate('Y-m-d', time() ) );
 
         // if we do not have to create collective invoices today
-        if( $current_date != $this->settings[ 'collective_invoice_next_date_ts' ] ) {
+        if ( false === $force && $current_date !== $this->settings[ 'collective_invoice_next_date_ts' ] ) {
             // return the empty array
             return $created_invoices;
         }
@@ -273,15 +305,39 @@ class RMA_WC_Collective_Invoicing {
         $settings         = get_option( 'wc_rma_settings' );
 
         // get all orders with no invoice
-        $not_invoiced_orders = self::get_not_invoiced_orders();
+        $not_invoiced_orders = self::get_not_invoiced_orders( $customers );
 
         $invoice = new RMA_WC_API();
 
-        foreach ( $not_invoiced_orders as $tax_statuses ) {
+        $invoice_prof = 0;
 
+        $invoice_counter = 0;
+
+        if ( empty( $customers ) ) {
+            $max_invoices = 500;
+        } else {
+            $max_invoices = 500;
+        }
+
+        // Only select the first n customers.
+        $not_invoiced_orders = array_slice( $not_invoiced_orders, 0, $max_invoices, true );
+
+        foreach ( $not_invoiced_orders as $tax_statuses ) {
+            if ( $invoice_counter > $max_invoices ) {
+                break;
+            }
             foreach ( $tax_statuses as $payment_methods ) {
+                if ( $invoice_counter > $max_invoices ) {
+                    break;
+                }
 
                 foreach ( $payment_methods as $order_ids ) {
+
+                    ++$invoice_counter;
+                    if ( $invoice_counter > $max_invoices ) {
+                        add_action( 'admin_table_notices', array( $this, 'admin_notice_too_many_invoices' ) );
+                        break;
+                    }
 
                     // sort the order ids in ascending order to output the items chronologically.
                     asort( $order_ids, SORT_NUMERIC );
@@ -295,11 +351,15 @@ class RMA_WC_Collective_Invoicing {
 
                     foreach ( $order_ids as $order_id ) {
 
-                        $order                = wc_get_order( $order_id );
-                        $order_date_created[] = $order->get_date_created()->date( 'U' ); // get order date created as unix timestamp
-                        unset( $order );
-                        
-                        if( $first_order ) {
+                        // Only needed to build the description string.
+                        if ( false === $description ) {
+                            $order                = wc_get_order( $order_id );
+                            $order_date_created[] = $order->get_date_created()->date( 'U' ); // get order date created as unix timestamp
+                            RMA_WC_API::delete_order_cache( $order );
+                            unset( $order );
+                        }
+
+                        if ( $first_order ) {
 
                             // remove flag for first payment method
                             $first_order = false;
@@ -308,7 +368,7 @@ class RMA_WC_Collective_Invoicing {
                             $order_details = $invoice->get_wc_order_details( $order_id );
 
                             // create the invoice id based on the first order id
-                            $invoice_id = RMA_INVOICE_PREFIX . str_pad( $order_id, max(intval(RMA_INVOICE_DIGITS) - strlen(RMA_INVOICE_PREFIX ), 0 ), '0', STR_PAD_LEFT );
+                            $invoice_id = RMA_INVOICE_PREFIX . str_pad( $order_id, max( intval( RMA_INVOICE_DIGITS ) - strlen( RMA_INVOICE_PREFIX ), 0 ), '0', STR_PAD_LEFT );
 
                         }
 
@@ -317,36 +377,49 @@ class RMA_WC_Collective_Invoicing {
 
                         // add shipping costs to order
                         $order_details_products = $invoice->get_order_details_shipping_costs( $order_id, $order_details_products );
-                        
                     }
 
                     // make sure we have an invoice header with values
-                    if( 0 < count( $order_details ) ) {
+                    if ( 0 < count( $order_details ) ) {
 
                         // create period between oldest and latest order
                         $period = date_i18n( get_option( 'date_format' ), min( $order_date_created ) ) . ' - ' . date_i18n( get_option( 'date_format' ), max( $order_date_created ) );
                         // create description
-                        $description = str_replace('[period]', $period, $settings[ 'rma-collective-invoice-description' ] ?? '' );
+                        if ( false === $description ) {
+                            // create period between oldest and latest order
+                            $description = str_replace( '[period]', $period, $settings[ 'rma-collective-invoice-description' ] ?? '' );
+                        }
                         // collect invoice data
                         $data = $invoice->get_invoice_data( $order_details, $order_details_products, $invoice_id, '', $description );
-                        // create xml and send invoice to Run My Accounts
-                        $result = $invoice->create_xml_content( $data, $order_ids, true );
 
-                        if( false != $result ) {
+                        if ( ! $display ) {
+                            // create xml and send invoice to Run My Accounts
+                            $result = $invoice->create_xml_content( $data, $order_ids, true );
 
-                            $created_invoices[] = $invoice_id;
-
+                            if ( false != $result ) {
+                                $created_invoices[] = $invoice_id;
+                            }
+                        } else {
+                            $first_order                     = wc_get_order( $order_ids[0] );
+                            $display_invoices[ $invoice_id ] = array(
+                                'data'      => $data,
+                                'user_id'   => $first_order->get_customer_id(),
+                                'order_ids' => $order_ids,
+                            );
                         }
-
                     }
 
+                    // Delete the order cache once the order is processed.
+                    RMA_WC_API::delete_order_cache( $first_order );
                 }
-
             }
-
         }
 
         unset( $invoice );
+
+        if ( $display ) {
+            return $display_invoices;
+        }
 
         // were invoices created, and we should send an email?
         if( 0 < count( $created_invoices ) && SENDLOGEMAIL ) {
@@ -385,4 +458,16 @@ class RMA_WC_Collective_Invoicing {
         }
     }
 
+    /**
+     * Add order ID to description.
+     */
+    public function add_order_id_to_description( array $part, ?int $item_id ): array {
+
+        $order_id            = wc_get_order_id_by_order_item_id( $item_id );
+        $order               = wc_get_order( $order_id );
+        $order_item          = $order->get_item( $item_id );
+        $part['order_id']    = $order_id;
+        $part['description'] = '#' . $order_id . ' ' . $order_item->get_name();
+        return $part;
+    }
 }
