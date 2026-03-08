@@ -128,7 +128,7 @@ if ( !class_exists('RMA_WC_API') ) {
 		 * @return array
 		 */
 		private static function get_authenticated_http_args( array $args = array() ): array {
-			$http_args = wp_parse_args( $args, array( 'timeout' => 120 ) );
+			$http_args = $args;
 
 			$headers = array();
 			if ( isset( $http_args['headers'] ) && is_array( $http_args['headers'] ) ) {
