@@ -90,6 +90,42 @@ class RMA_WC_Rental_And_Booking {
 
         }
 
+        // Set the article to the rental article for all rental bookings.
+        $settings               = get_option( 'wc_rma_settings' );
+        $rental_booking_article = is_array( $settings ) && ! empty( $settings[ 'rma-product-rnb-rental-article' ] )
+            ? $settings[ 'rma-product-rnb-rental-article' ]
+            : '';
+        if ( ! empty( $rental_booking_article ) ) {
+            $part[ 'partnumber' ] = $rental_booking_article;
+        }
+
+        // Set the projectnumber to the sku for the rental articles.
+        $projectnumber = '';
+        $order_id      = wc_get_order_id_by_order_item_id( $item_id );
+        $order         = $order_id ? wc_get_order( $order_id ) : false;
+        if ( $order ) {
+            $item = $order->get_item( $item_id );
+            if ( $item && is_callable( array( $item, 'get_product' ) ) ) {
+                $product = $item->get_product();
+                if ( $product ) {
+                    $sku = $product->get_sku();
+                    if ( ! empty( $sku ) ) {
+                        $projectnumber = $sku;
+                    }
+                }
+            }
+        }
+        if ( empty( $projectnumber ) ) {
+            wp_die(
+                sprintf(
+                    /* translators: %d: WooCommerce order item ID. */
+                    esc_html__( 'RMA rental invoice aborted: missing project number (SKU) for order item %d. Please set a SKU on the rental product.', 'run-my-accounts-for-woocommerce' ),
+                    (int) $item_id
+                )
+            );
+        }
+        $part[ 'projectnumber' ] = $projectnumber;
+
         // set line total price
         if( wc_tax_enabled() ) {
 

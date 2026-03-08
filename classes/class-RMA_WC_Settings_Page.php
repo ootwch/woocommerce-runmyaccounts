@@ -665,6 +665,37 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 				)
 			);
 
+			$id = 'rma-product-rnb-rental-article';
+			add_settings_field(
+				$id,
+				esc_html__('RNB rental Booking article', 'run-my-accounts-for-woocommerce'),
+				array( $this, 'rma_parts_cb'), // individual callback
+				$this->option_page_general,
+				$section,
+				array(
+					'option_group' => $this->option_group_general,
+					'id'           => $id,
+					'value'        => isset( $this->options_general[ $id ] ) ? $this->options_general[ $id ] : '',
+					'description'  => esc_html__('If you use Redq Rental and Booking, this is the article that is used for the rental booking.', 'run-my-accounts-for-woocommerce' )
+				)
+			);
+
+			$id = 'rma-product-rnb-cancelation-article';
+			add_settings_field(
+				$id,
+				esc_html__('RNB rental cancelation article', 'run-my-accounts-for-woocommerce'),
+				array( $this, 'rma_parts_cb'), // individual callback
+				$this->option_page_general,
+				$section,
+				array(
+					'option_group' => $this->option_group_general,
+					'id'           => $id,
+					'value'        => isset( $this->options_general[ $id ] ) ? $this->options_general[ $id ] : '',
+					'description'  => esc_html__('If you use Redq Rental and Booking, this is the article that is used for the rental cancelation booking.', 'run-my-accounts-for-woocommerce' )
+				)
+			);
+
+			do_action( 'rma-settings-' . $section, $this );
 		}
 
 		/**
