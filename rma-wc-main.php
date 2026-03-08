@@ -9,6 +9,8 @@ include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Settings_Page.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_API.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Frontend.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Collective_Invoicing.php';
+include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Collective_Invoice_Table.php';
+include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Admin_Collective_Invoice.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Payment.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Rental_And_Booking.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Invoice.php';
@@ -24,6 +26,7 @@ if ( is_admin() ) {
 	register_deactivation_hook(__FILE__, array('RMA_WC_Backend', 'deactivate') );
 
 	$my_settings_page = new RMA_WC_Settings_Page();
+	new RMA_WC_Admin_Collective_Invoice();
 
 	// delete table from deprecated log, which is moved to WC_LOG
 	if( get_option( 'wc_rma_db_version' ) ) {
