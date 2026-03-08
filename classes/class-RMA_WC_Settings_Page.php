@@ -336,6 +336,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 				)
 			);
 		}
+			do_action( 'rma-settings-' . $section, $this );
         }
 
 
@@ -470,6 +471,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 				)
 			);
 
+			do_action( 'rma-settings-' . $section, $this );
 		}
 
 		/**
@@ -542,6 +544,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 				)
 			);
 
+			do_action( 'rma-settings-' . $section, $this );
 		}
 
 		/**
@@ -630,6 +633,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 				)
 			);
 
+			do_action( 'rma-settings-' . $section, $this );
 		}
 
 		/**
@@ -707,6 +711,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 				)
 			);
 
+			do_action( 'rma-settings-' . $section, $this );
 
 		}
 
@@ -777,6 +782,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 				)
 			);
 
+			do_action( 'rma-settings-' . $section, $this );
 
 		}
 
@@ -814,6 +820,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 				)
 			);
 
+			do_action( 'rma-settings-' . $section, $this );
 		}
 
 		public function options_accounting_gateways() {
@@ -847,6 +854,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
 			}
 
+			do_action( 'rma-settings-' . $section, $this );
 		}
 
 		public function options_payment_gateways() {
@@ -883,6 +891,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
 			}
 
+			do_action( 'rma-settings-' . $section, $this );
 		}
 
 		public function options_collective_invoice() {
@@ -982,6 +991,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 				)
 			);
 
+			do_action( 'rma-settings-' . $section, $this );
 		}
 
 		public function section_info_accounting() {
