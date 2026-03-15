@@ -1553,12 +1553,12 @@ if ( !class_exists('RMA_WC_API') ) {
 		 */
 		public function create_invoice( string $order_id='' ): bool {
 
-			$is_active = self::is_activated( '$order_id ' . $order_id );
+			$is_active = $this->is_activated( '$order_id ' . $order_id );
 
 			// Continue only if an order_id is available and plugin function is activated
 			if( !$order_id || !$is_active ) return false;
 
-			$data = self::get_invoice_values( $order_id );
+			$data = $this->get_invoice_values( $order_id );
 
 			return self::create_xml_content( $data, array( $order_id ) );
 
@@ -1695,11 +1695,11 @@ if ( !class_exists('RMA_WC_API') ) {
 				return false;
 
 			// exit if plugin is not activated
-			if ( !self::is_activated('$user_id ' . $id ) )
+			if ( !$this->is_activated('$user_id ' . $id ) )
 				return false;
 
 			// exit if a customer should not be created automatically
-			if ( !self::do_create_customer() )
+			if ( !$this->do_create_customer() )
 				return false;
 
 			// exit if user is already linked to a RMA customer account
@@ -1709,7 +1709,7 @@ if ( !class_exists('RMA_WC_API') ) {
 				return false;
 
 			$method = 'get_customer_values_by_' . $type . '_id';
-			$data   = self::$method( $id );
+			$data   = $this->$method( $id );
 
 			// build REST api url for Run my Accounts
 			$caller_url_customer = self::get_caller_url() . RMA_MANDANT . '/customers';
