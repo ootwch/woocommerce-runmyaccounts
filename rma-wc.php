@@ -9,8 +9,8 @@
  * @copyright            2025 Openstream Internet Solutions
  * @license              GPL-3.0-or-later
  *
- * Plugin Name:          Run my Accounts for WooCommerce
- * Version:              1.9.1
+ * Plugin Name:          Run my Accounts for WooCommerce - SailCom Edition
+ * Version:              1.9.1-SailCom {BUILD}
  * Description:          This plug-in connects WooCommerce to <a href="https://www.runmyaccounts.ch/">Run my Accounts</a>. Create customers and invoices as soon as you get an order in your WooCommerce shop.
  * Requires at least:    6.2
  * Requires PHP:         7.2
