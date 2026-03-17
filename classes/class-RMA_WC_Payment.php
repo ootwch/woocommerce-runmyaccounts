@@ -133,10 +133,10 @@ class RMA_WC_Payment {
                 'status'     => $status,
                 'section_id' => $this->order_id,
                 'section'    => esc_html_x('Payment', 'Log Section', 'run-my-accounts-for-woocommerce'),
-                'mode'       => (new RMA_WC_API)->rma_mode(),
+                'mode'       => RMA_WC_API::rma_mode(),
                 'message'    => $message );
 
-            RMA_WC_API::write_log($log_values);
+            RMA_WC_API::write_log( $log_values );
 
         }
 

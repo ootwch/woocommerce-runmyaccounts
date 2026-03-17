@@ -30,6 +30,14 @@ class RMA_WC_Admin_Collective_Invoice {
 
 		add_action( 'admin_menu', array( $this, 'add_menu_entry' ), 12 );
 		add_action( 'admin_post_collective_invoicing_form_response', array( $this, 'start_billing_run' ) );
+		add_filter( 'set-screen-option', array( $this, 'set_screen_option' ), 10, 3 );
+	}
+
+	public function set_screen_option( $status, $option, $value ) {
+		if ( 'invoice_dashboard_groups_per_page' === $option ) {
+			return max( 1, (int) $value );
+		}
+		return $status;
 	}
 
 
@@ -57,6 +65,14 @@ class RMA_WC_Admin_Collective_Invoice {
 	}
 
 	public function init_list_table() {
+		add_screen_option(
+			'per_page',
+			array(
+				'label'   => __( 'Groups per page', 'woocommerce-sailcom' ),
+				'default' => 20,
+				'option'  => 'invoice_dashboard_groups_per_page',
+			)
+		);
 		$this->invoice_table = new RMA_WC_Collective_Invoice_Table();
 	}
 
@@ -154,8 +170,13 @@ class RMA_WC_Admin_Collective_Invoice {
 				$orders = array_map( 'intval', wp_parse_list( $_GET['selected_order_ids'] ) ); //phpcs:ignore
 			}
 			$t               = new RMA_WC_Collective_Invoicing();
-			$all_invoices    = $t->create_collective_invoice( true, true );
-			$current_invoice = $all_invoices[ $invoice_id ];
+			$current_invoice = $t->get_dashboard_invoice_by_id( $invoice_id );
+			if ( null === $current_invoice ) {
+				wp_die( 'Invoice group not found.' );
+			}
+			if ( empty( $orders ) ) {
+				$orders = array_map( 'intval', $current_invoice['order_ids'] ?? array() );
+			}
 
 			$current_invoice['data']['part'] = array_filter(
 				$current_invoice['data']['part'],
@@ -208,8 +229,13 @@ class RMA_WC_Admin_Collective_Invoice {
 				$orders = array_map( 'intval', wp_parse_list( $_GET['selected_order_ids'] ) ); //phpcs:ignore
 			}
 			$t               = new RMA_WC_Collective_Invoicing();
-			$all_invoices    = $t->create_collective_invoice( true, true );
-			$current_invoice = $all_invoices[ $invoice_id ];
+			$current_invoice = $t->get_dashboard_invoice_by_id( $invoice_id );
+			if ( null === $current_invoice ) {
+				wp_die( 'Invoice group not found.' );
+			}
+			if ( empty( $orders ) ) {
+				$orders = array_map( 'intval', $current_invoice['order_ids'] ?? array() );
+			}
 
 			$current_invoice['data']['part'] = array_filter(
 				$current_invoice['data']['part'],

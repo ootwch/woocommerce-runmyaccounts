@@ -38,6 +38,28 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 	public int $all_items_count = 0;
 
 	/**
+	 * Summary counts from first pass.
+	 *
+	 * @var array
+	 */
+	public array $summary_counts = array(
+		'affected_users' => 0,
+		'orders'         => 0,
+		'groups'         => 0,
+	);
+
+	/**
+	 * Action result counters for the latest creation run.
+	 *
+	 * @var array
+	 */
+	public array $action_result_counts = array(
+		'ok'      => 0,
+		'fail'    => 0,
+		'skipped' => 0,
+	);
+
+	/**
 	 * Constructor, we override the parent to pass our own arguments
 	 * We usually focus on three parameters: singular and plural labels, as well as whether the class supports AJAX.
 	 */
@@ -123,6 +145,11 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 				$invoice_footer_en      = get_option( 'rma_invoice_footer_en', '' );
 
 				$created_invoices = array();
+				$this->action_result_counts = array(
+					'ok'      => 0,
+					'fail'    => 0,
+					'skipped' => 0,
+				);
 
 				// create xml and send invoice to Run My Accounts.
 				$api = new RMA_WC_API();
@@ -130,9 +157,10 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 				foreach ( $this->items as $invoice_id => $current_invoice ) {
 
 					// Skip invoices that are not sailcom-invoice.
-					$payment_method = $current_invoice['data']['invoice']['paymentmethod'];
+					$payment_method = $current_invoice['data']['invoice']['paymentmethod'] ?? '';
 					if ( 'sailcom-invoice' !== $payment_method ) {
 						$this->items[ $invoice_id ]['created_status'] = 'SKIPPED';
+						++$this->action_result_counts['skipped'];
 						continue;
 					}
 
@@ -143,13 +171,21 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 					$order_ids = array_column( $current_invoice['data']['part'], 'order_id' );
 
 					// $result = false;
+					RMA_WC_API::clear_last_invoice_error_message();
 					$result = $api->create_xml_content( $current_invoice['data'], $order_ids, true );
 
 					if ( false !== $result ) {
 						$created_invoices[]                           = $invoice_id;
 						$this->items[ $invoice_id ]['created_status'] = 'OK';
+						++$this->action_result_counts['ok'];
 					} else {
 						$this->items[ $invoice_id ]['created_status'] = 'FAIL';
+						$api_error_message = trim( RMA_WC_API::get_last_invoice_error_message() );
+						if ( '' !== $api_error_message ) {
+							/* translators: %s is the API error returned by Run my Accounts. */
+							$this->items[ $invoice_id ]['created_message'] = sprintf( __( 'Invoice creation failed: %s', 'wc-rma' ), $api_error_message );
+						}
+						++$this->action_result_counts['fail'];
 					}
 				}
 
@@ -157,6 +193,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 				if ( 0 < count( $created_invoices ) && SENDLOGEMAIL ) {
 
 					$headers       = array( 'Content-Type: text/html; charset=UTF-8' );
+					/* translators: %s is a comma-separated list of collective invoice IDs. */
 					$email_content = sprintf( esc_html_x( 'The following collective invoices were sent: %s', 'email', 'rma-wc' ), implode( ', ', $created_invoices ) );
 					wp_mail( LOGEMAIL, esc_html_x( 'Collective invoices were sent', 'email', 'rma-wc' ), $email_content, $headers );
 
@@ -243,10 +280,20 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
         
         });
 
-		// hide/unhinde invoice details
+		// hide/unhide invoice details
 		jQuery('a.expand-order-details-toggle').click( function(event) {
 			event.preventDefault();
-			jQuery( 'tr.order-details-' + event.target.getAttribute('invoice-id')).toggle();
+			var toggle = jQuery( this );
+			var invoiceId = toggle.attr( 'invoice-id' );
+			var rows = jQuery( 'tr.order-details-' + invoiceId );
+			var expanded = 'true' === toggle.attr( 'aria-expanded' );
+
+			rows.toggle();
+			toggle.attr( 'aria-expanded', expanded ? 'false' : 'true' );
+			toggle.find( '.order-details-toggle-icon' ).text( expanded ? '▸' : '▾' );
+			toggle.find( '.order-details-toggle-label' ).text(
+				expanded ? toggle.attr( 'data-expand-label' ) : toggle.attr( 'data-collapse-label' )
+			);
 		})
 
 		// Invoice title / text tabs
@@ -292,6 +339,28 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 	public function extra_tablenav( $which ) {
 
 		if ( 'top' === $which ) {
+			if ( 'done' === $this->execution_mode ) {
+				printf(
+					'<div class="notice notice-info inline"><p><strong>%s</strong> %d | <strong>%s</strong> %d | <strong>%s</strong> %d</p></div>',
+					esc_html__( 'Created:', 'wc-rma' ),
+					(int) ( $this->action_result_counts['ok'] ?? 0 ),
+					esc_html__( 'Failed:', 'wc-rma' ),
+					(int) ( $this->action_result_counts['fail'] ?? 0 ),
+					esc_html__( 'Skipped:', 'wc-rma' ),
+					(int) ( $this->action_result_counts['skipped'] ?? 0 )
+				);
+			}
+
+			printf(
+				'<div class="alignleft actions"><strong>%s</strong> %d | <strong>%s</strong> %d | <strong>%s</strong> %d</div>',
+				esc_html__( 'Affected users:', 'wc-rma' ),
+				(int) ( $this->summary_counts['affected_users'] ?? 0 ),
+				esc_html__( 'Orders:', 'wc-rma' ),
+				(int) ( $this->summary_counts['orders'] ?? 0 ),
+				esc_html__( 'Groups:', 'wc-rma' ),
+				(int) ( $this->summary_counts['groups'] ?? 0 )
+			);
+
 			if ( 'confirm' === $this->execution_mode ) {
 				echo '<div id="selected-invoice-amount"><strong>Selected Number of Invoices</strong>' . esc_attr( count( $this->items ) ) . '</div>';
 			} else {
@@ -528,9 +597,32 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			$user_id_filter = $customer_query->get_results();
 		}
 
-		$t               = new RMA_WC_Collective_Invoicing();
-		$display_data    = $t->create_collective_invoice( true, true, false, $user_id_filter );
-		$this->all_items_count = count( $display_data );
+		$payment_method_filter = isset( $_REQUEST['payment-method-filter'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['payment-method-filter'] ) ) : '';
+		$groups_per_page       = max( 1, (int) $this->get_items_per_page( 'invoice_dashboard_groups_per_page', 20 ) );
+		$current_page          = max( 1, $this->get_pagenum() );
+
+		$t         = new RMA_WC_Collective_Invoicing();
+		$plan_data = $t->get_dashboard_group_plan( $user_id_filter, $groups_per_page, $payment_method_filter );
+		$this->summary_counts  = $plan_data['totals'];
+		$this->all_items_count = (int) $plan_data['totals']['groups'];
+
+		$this->set_pagination_args(
+			array(
+				'total_items' => (int) $plan_data['totals']['groups'],
+				'per_page'    => $groups_per_page,
+				'total_pages' => max( 1, (int) $plan_data['totals']['pages'] ),
+			)
+		);
+
+		$current_page_groups = array_values(
+			array_filter(
+				$plan_data['groups'],
+				static function( array $group ) use ( $current_page ): bool {
+					return (int) $group['page_number'] === $current_page;
+				}
+			)
+		);
+		$display_data = $t->build_display_invoices_for_groups( $current_page_groups );
 
 		// Only show selected invoiced
 		$invoice_ids = ! empty( $_POST['invoice_id'] ) ? array_map( 'esc_attr', array_map( 'sanitize_text_field', wp_unslash( $_POST['invoice_id'] ) ) ) : array();
@@ -540,17 +632,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			unset( $_REQUEST['paged'] );
 		}
 
-		// filter payment method.
-		$payment_method_filter = isset( $_REQUEST['payment-method-filter'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['payment-method-filter'] ) ) : '';
-		if ( '' !== $payment_method_filter ) {
-			$display_data = array_filter(
-				$display_data,
-				function( $item ) use ( $payment_method_filter ) {
-					$payment_method = $item['data']['invoice']['paymentmethod'];
-					return ( $payment_method === $payment_method_filter ) || ( empty( $payment_method ) && 'no-payment-method' === $payment_method_filter );
-				}
-			);
-		}
+		// Payment method filter is already applied in first pass.
 
 		// filter product class (all/non-rental/rental).
 		$boat_rental_filter = isset( $_REQUEST['boat-rental-filter'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['boat-rental-filter'] ) ) : '';
@@ -645,12 +727,15 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 	}
 
 	public function column_col_creation_status( $item ) {
-		echo esc_attr( $item['created_status'] ?? '--X--' );
+		echo esc_html( (string) ( $item['created_status'] ?? '--X--' ) );
+		if ( ! empty( $item['created_message'] ) ) {
+			echo '<br><small>' . esc_html( (string) $item['created_message'] ) . '</small>';
+		}
 	}
 
 
 	public function column_col_invoice_id( $item ) {
-		$payment_method = $item['data']['invoice']['paymentmethod'];
+		$payment_method = $item['data']['invoice']['paymentmethod'] ?? '';
 		if ( empty( $payment_method ) ) {
 			$payment_method = '<no payment method>';
 		}
@@ -660,9 +745,24 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		$invoice_id = $item['data']['invoice']['invnumber'];
 		$nonce      = wp_create_nonce( 'create_single_invoice_' . $invoice_id );
 		echo esc_html( stripslashes( $invoice_id ) );
+
+		$order_count = count( $item['order_ids'] ?? array() );
+		if ( 0 === $order_count ) {
+			$order_count = count( $item['data']['part'] ?? array() );
+		}
+		/* translators: %d is the number of orders contained in an invoice group. */
+		$expand_label = sprintf( __( 'Details (%d)', 'wc-rma' ), $order_count );
+		/* translators: %d is the number of orders contained in an invoice group. */
+		$collapse_label = sprintf( __( 'Hide details (%d)', 'wc-rma' ), $order_count );
+		printf(
+			'<div class="order-details-toggle-wrap" style="margin-top:2px;"><a href="#" class="expand-order-details-toggle" style="display:inline-block;white-space:nowrap;" invoice-id="%1$s" aria-expanded="false" data-expand-label="%2$s" data-collapse-label="%3$s"><span class="order-details-toggle-icon" aria-hidden="true">▸</span> <span class="order-details-toggle-label">%4$s</span></a></div>',
+			esc_attr( $invoice_id ),
+			esc_attr( $expand_label ),
+			esc_attr( $collapse_label ),
+			esc_html( $expand_label )
+		);
 		
 		$actions = array(
-			
 			'create_invoice' => sprintf( '<a href="#" data-nonce="%s" data-invoice_id="%s">%s</a>', $nonce, $invoice_id, __( 'Create Invoice', 'rma-wc' ) ),
 		);
 		echo $this->row_actions( $actions );
@@ -738,8 +838,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			);
 
 		}
-
-		printf( '<div><a href="#" class="expand-order-details-toggle" invoice-id="%s">Expand</a></div>', esc_attr( $invoice_id ) );
 	}
 
 	/**
@@ -783,6 +881,24 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		foreach ( $item['data']['part'] as $part ) {
 
 			$description = preg_replace( '[&#xA;|&#xD;]', '<br/>', $part['description'] );
+			$order_id    = isset( $part['order_id'] ) ? (int) $part['order_id'] : 0;
+			if ( $order_id > 0 ) {
+				$order_edit_link = get_edit_post_link( $order_id, '' );
+				if ( ! empty( $order_edit_link ) ) {
+					$order_number_label = '#' . $order_id;
+					$order_number_link  = sprintf(
+						'<a href="%s" target="_blank">%s</a>',
+						esc_url( $order_edit_link ),
+						esc_html( $order_number_label )
+					);
+					$description = preg_replace(
+						'/\#' . preg_quote( (string) $order_id, '/' ) . '\b/',
+						$order_number_link,
+						$description,
+						1
+					);
+				}
+			}
 
 			// add info to facilitate automated testing.
 			// $row_info = sprintf( 'data-invoice_id=%s', $invoice_id );

@@ -4,6 +4,37 @@ if ( !defined('ABSPATH') ) exit;
 if ( !class_exists('RMA_WC_API') ) {
 
 	class RMA_WC_API {
+		/**
+		 * Backward-compatible in-memory log sink for admin screens.
+		 *
+		 * @var array<int,array<string,mixed>>
+		 */
+		public static $temporary_log = array();
+
+		/**
+		 * Last invoice API error message from create_xml_content().
+		 *
+		 * @var string
+		 */
+		public static $last_invoice_error_message = '';
+
+		/**
+		 * Return last invoice API error message.
+		 *
+		 * @return string
+		 */
+		public static function get_last_invoice_error_message(): string {
+			return (string) self::$last_invoice_error_message;
+		}
+
+		/**
+		 * Clear last invoice API error message.
+		 *
+		 * @return void
+		 */
+		public static function clear_last_invoice_error_message(): void {
+			self::$last_invoice_error_message = '';
+		}
 
 		/**
 		 *  Construct
@@ -18,6 +49,10 @@ if ( !class_exists('RMA_WC_API') ) {
 		}
 
 		public static function format_log_information( $log_information ) {
+			if ( empty( $log_information ) || ! is_array( $log_information ) ) {
+				return '';
+			}
+
 			$output = '<table class="widefat">';
 
 			$table_header = true;
@@ -1221,7 +1256,9 @@ if ( !class_exists('RMA_WC_API') ) {
 			// Add parts
 			if ( count( $order_details_products ) > 0 ) :
 
-				foreach ( $order_details_products as $part_number => $part ) :
+				foreach ( $order_details_products as $part_key => $part ) :
+
+					$part_number = $part['sku'] ?? $part_key;
 
 					// check if fallback sku exist and part number does not exist in list of RMA part numbers
 					if( !empty( $fallback_sku ) &&
@@ -1465,10 +1502,11 @@ if ( !class_exists('RMA_WC_API') ) {
 
 					$qty = $item->get_quantity();
 
-					$order_details_products[ $product->get_sku() ] = array(
+					$order_details_products[ (string) $item_id ] = array(
 						'name'     => $item->get_name(),
 						'quantity' => $qty,
 						'price'    => wc_format_decimal( $item->get_total() / $qty, 2 ),
+						'sku'      => $product->get_sku(),
 						'item_id'  => $item_id
 					);
 
@@ -1516,10 +1554,11 @@ if ( !class_exists('RMA_WC_API') ) {
 				// we get shipping text from settings page otherwise we take shipping method
 				$shipping_text = ( isset( $settings['rma-shipping-text'] ) && !empty( $settings['rma-shipping-text'] ) ? $settings['rma-shipping-text'] : $order->get_shipping_method() );
 
-				$order_details_products[ $shipping_costs_product_id ] = array(
+				$order_details_products[ 'shipping_' . $order_id ] = array(
 					'name'     => $shipping_text,
 					'quantity' => 1,
-					'price'    => $order_shipping_total
+					'price'    => $order_shipping_total,
+					'sku'      => $shipping_costs_product_id,
 				);
 
 			}
@@ -1575,6 +1614,8 @@ if ( !class_exists('RMA_WC_API') ) {
 		 * @throws DOMException
 		 */
 		public static function create_xml_content( array $data, array $order_ids, bool $collective_invoice = false ): bool {
+
+			self::clear_last_invoice_error_message();
 
 			$url  = self::get_caller_url() . RMA_MANDANT . '/invoices';
 
@@ -1641,6 +1682,7 @@ if ( !class_exists('RMA_WC_API') ) {
 
 				$status  = 'error';
 				$message = '[' . self::first_key_of_array( $response ) . '] ' . reset( $response ); // get value of first key = return message
+				self::$last_invoice_error_message = (string) $message;
 
 				// add order note to each order
 				foreach ( $order_ids as $order_id ) {
@@ -1659,7 +1701,6 @@ if ( !class_exists('RMA_WC_API') ) {
 			}
 
 			if ( ( 'error' == LOGLEVEL && 'error' == $status ) || 'complete' == LOGLEVEL ) {
-
 				$log_values = array(
 					'status' => $status,
 					'section_id' => $order_id,
@@ -1808,19 +1849,19 @@ if ( !class_exists('RMA_WC_API') ) {
 		 */
 		public static function send_xml_content( string $xml, string $url ): array {
 
-            $response = wp_safe_remote_post(
-                $url,
-                self::get_rma_http_args(
-                    self::get_authenticated_http_args(
-                        array(
-                            'headers'          => array(
-                                'Content-Type' => 'application/xml'
-                            ),
-                            'body'             => $xml
-                        )
-                    )
-                )
-            );
+			$response = wp_safe_remote_post(
+				$url,
+				self::get_rma_http_args(
+					self::get_authenticated_http_args(
+						array(
+							'headers' => array(
+								'Content-Type' => 'application/xml'
+							),
+							'body' => $xml
+						)
+					)
+				)
+			);
 
 			$response_code    = wp_remote_retrieve_response_code( $response );
 			$response_body    = wp_remote_retrieve_body( $response );
@@ -1885,7 +1926,7 @@ if ( !class_exists('RMA_WC_API') ) {
 		 *
 		 * @return bool
 		 */
-		public function write_log( &$values ): bool {
+		public static function write_log( &$values ): bool {
 
 			If( ! function_exists( 'wc_get_logger' ) || empty( $values ) ) {
 				return false;
