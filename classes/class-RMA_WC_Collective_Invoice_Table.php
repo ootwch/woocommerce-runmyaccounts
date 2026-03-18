@@ -600,9 +600,10 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		$payment_method_filter = isset( $_REQUEST['payment-method-filter'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['payment-method-filter'] ) ) : '';
 		$groups_per_page       = max( 1, (int) $this->get_items_per_page( 'invoice_dashboard_groups_per_page', 20 ) );
 		$current_page          = max( 1, $this->get_pagenum() );
+		$filter                = ! empty( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '';
 
 		$t         = new RMA_WC_Collective_Invoicing();
-		$plan_data = $t->get_dashboard_group_plan( $user_id_filter, $groups_per_page, $payment_method_filter );
+		$plan_data = $t->get_dashboard_group_plan( $user_id_filter, $groups_per_page, $payment_method_filter, $filter );
 		$this->summary_counts  = $plan_data['totals'];
 		$this->all_items_count = (int) $plan_data['totals']['groups'];
 
@@ -664,31 +665,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 					},
 					$display_data,
 				),
-			);
-		}
-
-		// Filter data by search term.
-		$filter = ! empty( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '';
-		if ( ! empty( $filter ) ) {
-			$display_data = array_filter(
-				$display_data,
-				function( $item ) use ( $filter ) {
-					$customernumber = $item['data']['invoice']['customernumber'];
-					$user_id        = esc_attr( $item['user_id'] );
-
-					if ( 0 === absint( $user_id ) ) {
-						$search_string = 'guest';
-					} else {
-						$user_data  = get_userdata( $item['user_id'] );
-						$user_meta  = get_user_meta( $item['user_id'] );
-						$user_name  = $user_data->display_name;
-						$user_email = $user_meta['user_email'] ?? '';
-
-						$search_string = $customernumber . $user_name . $user_id . $user_email;
-					}
-
-					return str_contains( strtoupper( $search_string ), strtoupper( $filter ) );
-				}
 			);
 		}
 

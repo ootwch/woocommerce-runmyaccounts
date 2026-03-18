@@ -216,9 +216,10 @@ class RMA_WC_Collective_Invoicing {
      * @param array  $customers Customer IDs filter.
      * @param int    $groups_per_page Group cap per page.
      * @param string $payment_method_filter Payment filter.
+     * @param string $search_filter Search term for customer/group matching.
      * @return array
      */
-    public function get_dashboard_group_plan( array $customers = array(), int $groups_per_page = 20, string $payment_method_filter = '' ): array {
+    public function get_dashboard_group_plan( array $customers = array(), int $groups_per_page = 20, string $payment_method_filter = '', string $search_filter = '' ): array {
         $groups = $this->build_order_groups( $this->get_not_invoiced_order_rows( $customers ) );
 
         if ( '' !== $payment_method_filter ) {
@@ -227,6 +228,28 @@ class RMA_WC_Collective_Invoicing {
                 function( array $group ) use ( $payment_method_filter ): bool {
                     $method = $group['payment_method'];
                     return ( $method === $payment_method_filter ) || ( empty( $method ) && 'no-payment-method' === $payment_method_filter );
+                }
+            );
+        }
+
+        if ( '' !== $search_filter ) {
+            $groups = array_filter(
+                $groups,
+                static function( array $group ) use ( $search_filter ): bool {
+                    $user_id = (int) ( $group['user_id'] ?? 0 );
+
+                    if ( 0 === $user_id ) {
+                        $search_string = 'guest';
+                    } else {
+                        $user_data      = get_userdata( $user_id );
+                        $customernumber = (string) get_user_meta( $user_id, 'rma_customer', true );
+                        $user_name      = false !== $user_data ? (string) $user_data->display_name : '';
+                        $user_email     = false !== $user_data ? (string) $user_data->user_email : '';
+
+                        $search_string = $customernumber . $user_name . (string) $user_id . $user_email;
+                    }
+
+                    return str_contains( strtoupper( $search_string ), strtoupper( $search_filter ) );
                 }
             );
         }
