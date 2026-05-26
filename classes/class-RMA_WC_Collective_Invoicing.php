@@ -333,7 +333,10 @@ class RMA_WC_Collective_Invoicing {
             $first_order_id = (int) reset( $order_ids );
             $invoice_id     = $this->get_invoice_id_from_order_id( $first_order_id );
             $data           = $invoice->get_invoice_data( $order_details, $order_details_products, $invoice_id, '', (string) $group_description );
-			$data['invoice']['paymentmethod'] = (string) ( $group['payment_method'] ?? '' );
+            if ( isset( $data['error'] ) ) {
+                wp_die( esc_html( (string) ( $data['message'] ?? $data['error'] ) ) );
+            }
+            $data['invoice']['paymentmethod'] = (string) ( $group['payment_method'] ?? '' );
             $first_order    = wc_get_order( $first_order_id );
 
             $display_invoices[ $invoice_id ] = array(
@@ -495,6 +498,9 @@ class RMA_WC_Collective_Invoicing {
                         }
                         // collect invoice data
                         $data = $invoice->get_invoice_data( $order_details, $order_details_products, $invoice_id, '', $description );
+                        if ( isset( $data['error'] ) ) {
+                            wp_die( esc_html( (string) ( $data['message'] ?? $data['error'] ) ) );
+                        }
 
                         if ( ! $display ) {
                             // create xml and send invoice to Run My Accounts
