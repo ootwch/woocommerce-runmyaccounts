@@ -188,13 +188,18 @@ if ( ! class_exists('RMA_WC_Frontend' ) ) {
          */
         static function array_insert( $array, $after_key, $key, $value ): array {
 
-            $pos   = array_search( $after_key, array_keys( $array ) ) ;
-            $pos ++;
+            $pos = array_search( $after_key, array_keys( $array ), true );
+
+            if ( false === $pos ) {
+                return array_merge( $array, array( $key => $value ) );
+            }
+
+            ++$pos;
 
             return array_merge(
-                array_slice( $array, 0, $pos, $preserve_keys = true),
-                array( $key=>$value ),
-                array_slice( $array, $pos, null, $preserve_keys = true )
+                array_slice( $array, 0, $pos, true ),
+                array( $key => $value ),
+                array_slice( $array, $pos, null, true )
             );
         }
 
