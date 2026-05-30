@@ -140,53 +140,54 @@ class RMA_WC_Rental_And_Booking {
 		$total = wc_get_order_item_meta( $item_id, '_line_total' );
 		$tax   = wc_get_order_item_meta( $item_id, '_line_tax' );
 
-		$part_title = wc_get_order_item_meta( $item_id, 'Choose Inventory' );
+		$set_description = function () use (
+			&$part,
+			$item_id,
+			$order_id,
+			$order,
+			$datetime_format,
+			$is_cancelation_order,
+			$canceled_order_id
+		) {
+			$part_title = wc_get_order_item_meta( $item_id, 'Choose Inventory' );
 
-		$rnb_order_meta = wc_get_order_item_meta( $item_id, 'rnb_hidden_order_meta' );
+			$rnb_order_meta = wc_get_order_item_meta( $item_id, 'rnb_hidden_order_meta' );
 
-		$confirmed_datetime_formatted = $order->get_date_created()->format( $datetime_format );
+			$confirmed_datetime_formatted = $order->get_date_created()->format( $datetime_format );
 
-		// build multiline description.
-		$part['description'] = '';
+			$part['description'] = '';
 
-		if ( $is_cancelation_order ) {
+			if ( $is_cancelation_order ) {
+				$part['description'] = esc_html(
+					sprintf(
+						/* translators: Newline: '&#xA;', %1$s: order_id, %2$s: origininal order id, %3$s: product (boat) name, %4$s: cancelation time */
+						__( '#%1$s: Cancellation of reservation #%2$s of %3$s. Cancellation time: %4$s.', 'woocommerce-sailcom' ),
+						$order_id,
+						$canceled_order_id,
+						$part_title,
+						$confirmed_datetime_formatted,
+					),
+				);
+			} else {
+				$pickup_time                = new \DateTime( $rnb_order_meta['pickup_date'] . ' ' . $rnb_order_meta['pickup_time'], wp_timezone() );
+				$pickup_datetime_formatted  = wp_date( $datetime_format, $pickup_time->format( 'U' ) );
+				$dropoff_time               = new \DateTime( $rnb_order_meta['dropoff_date'] . ' ' . $rnb_order_meta['dropoff_time'], wp_timezone() );
+				$dropoff_datetime_formatted = wp_date( $datetime_format, $dropoff_time->format( 'U' ) );
 
+				$part['description'] = esc_html(
+					sprintf(
+						/* translators: %1$s: order_id, %2$s: product (boat) name, %3$s: reservation start datetime %4$s: reservation end datetime */
+						__( '#%1$s: Booking of %2$s, %3$s until %4$s', 'woocommerce-sailcom' ),
+						$order_id,
+						$part_title,
+						$pickup_datetime_formatted,
+						$dropoff_datetime_formatted
+					),
+				);
+			}
+		};
 
-			$part['description'] = esc_html(
-				sprintf(
-					/* translators: Newline: '&#xA;', %1$s: order_id, %2$s: origininal order id, %3$s: product (boat) name, %4$s: cancelation time */
-					__( '#%1$s: Cancellation of reservation #%2$s of %3$s. Cancellation time: %4$s.', 'woocommerce-sailcom' ),
-					$order_id,
-					$canceled_order_id,
-					$part_title,
-					$confirmed_datetime_formatted,
-				),
-			);
-
-
-		} else {
-
-			$pickup_time                = new \DateTime( $rnb_order_meta['pickup_date'] . ' ' . $rnb_order_meta['pickup_time'], wp_timezone() );
-			$pickup_datetime_formatted  = wp_date( $datetime_format, $pickup_time->format( 'U' ) );
-			$dropoff_time               = new \DateTime( $rnb_order_meta['dropoff_date'] . ' ' . $rnb_order_meta['dropoff_time'], wp_timezone() );
-			$dropoff_datetime_formatted = wp_date( $datetime_format, $dropoff_time->format( 'U' ) );
-
-			// Use self::XML_NL for newlines.
-
-			$part['description'] = esc_html(
-				sprintf(
-					/* translators: %1$s: order_id, %2$s: product (boat) name, %3$s: reservation start datetime %4$s: reservation end datetime */
-					__( '#%1$s: Booking of %2$s, %3$s until %4$s', 'woocommerce-sailcom' ),
-					$order_id,
-					$part_title,
-					$pickup_datetime_formatted,
-					$dropoff_datetime_formatted
-				),
-			);
-
-			// $part['description']  = '#' . $order_id . ': ' . esc_html__( 'Booking of ', 'woocommerce-sailcom' ) . self::XML_NL;
-			// $part['description'] .= $part_title . self::XML_NL . $pickup_datetime_formatted . ' - ' . $dropoff_datetime_formatted;
-		}
+		RMA_WC_Order_Language::with_order_locale( $order, $set_description );
 
 		// $part['description'] .= self::XML_NL . '(' . $confirmed_datetime_formatted . '/' . $order->get_customer_ip_address() . ')';
 

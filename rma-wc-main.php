@@ -7,6 +7,7 @@ include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Backend_Abstract.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Backend.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Settings_Page.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_API.php';
+include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Order_Language.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Frontend.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Collective_Invoicing.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Collective_Invoice_Table.php';

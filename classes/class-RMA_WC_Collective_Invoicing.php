@@ -573,12 +573,17 @@ class RMA_WC_Collective_Invoicing {
      */
     public function add_order_id_to_description( array $part, ?int $item_id ): array {
 
-        $order_id            = wc_get_order_id_by_order_item_id( $item_id );
-        $order               = wc_get_order( $order_id );
-        $order_item          = $order->get_item( $item_id );
-        $part['order_id']    = $order_id;
-        $part['description'] = '#' . $order_id . ' ' . $order_item->get_name();
-        return $part;
+        $order_id   = wc_get_order_id_by_order_item_id( $item_id );
+        $order      = wc_get_order( $order_id );
+        $order_item = $order->get_item( $item_id );
+        $part['order_id'] = $order_id;
+
+        $set_description = function () use ( $part, $order_id, $order_item ) {
+            $part['description'] = '#' . $order_id . ' ' . $order_item->get_name();
+            return $part;
+        };
+
+        return RMA_WC_Order_Language::with_order_locale( $order, $set_description );
     }
 
     /**

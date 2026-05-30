@@ -164,11 +164,33 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 						continue;
 					}
 
-					$current_invoice['data']['invoice']['description']  = esc_xml( $invoice_title_en );
-					$current_invoice['data']['invoice']['text_field_1'] = esc_xml( $invoice_description_en );
-					$current_invoice['data']['invoice']['notes']        = esc_xml( $invoice_footer_en );
-
 					$order_ids = array_column( $current_invoice['data']['part'], 'order_id' );
+					$lang      = 'en';
+					if ( ! empty( $order_ids ) ) {
+						$invoice_order = wc_get_order( (int) $order_ids[0] );
+						if ( $invoice_order instanceof WC_Order ) {
+							$lang = RMA_WC_Order_Language::get_order_language( $invoice_order );
+						}
+					}
+
+					$invoice_title = RMA_WC_Order_Language::collective_invoice_option( 'title', $lang );
+					if ( '' === $invoice_title ) {
+						$invoice_title = $invoice_title_en;
+					}
+
+					$invoice_description = RMA_WC_Order_Language::collective_invoice_option( 'description', $lang );
+					if ( '' === $invoice_description ) {
+						$invoice_description = $invoice_description_en;
+					}
+
+					$invoice_footer = RMA_WC_Order_Language::collective_invoice_option( 'footer', $lang );
+					if ( '' === $invoice_footer ) {
+						$invoice_footer = $invoice_footer_en;
+					}
+
+					$current_invoice['data']['invoice']['description']  = esc_xml( $invoice_title );
+					$current_invoice['data']['invoice']['text_field_1'] = esc_xml( $invoice_description );
+					$current_invoice['data']['invoice']['notes']        = esc_xml( $invoice_footer );
 
 					// $result = false;
 					RMA_WC_API::clear_last_invoice_error_message();
