@@ -486,7 +486,9 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			*/
 
 			/** Payment Method Filter */
-			$payment_method_filter = isset( $_REQUEST['payment-method-filter'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['payment-method-filter'] ) ) : '';
+			$payment_method_filter = isset( $_REQUEST['payment-method-filter'] )
+				? sanitize_text_field( wp_unslash( $_REQUEST['payment-method-filter'] ) )
+				: 'sailcom-invoice';
 			echo '<select style="width:50%;" class="select short payment-method-filter" name="payment-method-filter" data-allow_clear="true">';
 			$selected = '' === $payment_method_filter ? 'selected' : '';
 			echo '<option class="select short" value="" ' . esc_attr( $selected ) . '></option>';
@@ -619,7 +621,9 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			$user_id_filter = $customer_query->get_results();
 		}
 
-		$payment_method_filter = isset( $_REQUEST['payment-method-filter'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['payment-method-filter'] ) ) : '';
+		$payment_method_filter = isset( $_REQUEST['payment-method-filter'] )
+			? sanitize_text_field( wp_unslash( $_REQUEST['payment-method-filter'] ) )
+			: 'sailcom-invoice';
 		$groups_per_page       = max( 1, (int) $this->get_items_per_page( 'invoice_dashboard_groups_per_page', 20 ) );
 		$current_page          = max( 1, $this->get_pagenum() );
 		$filter                = ! empty( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '';
