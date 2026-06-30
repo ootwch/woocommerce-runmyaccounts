@@ -220,17 +220,7 @@ class RMA_WC_Collective_Invoicing {
      * @return array
      */
     public function get_dashboard_group_plan( array $customers = array(), int $groups_per_page = 20, string $payment_method_filter = '', string $search_filter = '' ): array {
-        $groups = $this->build_order_groups( $this->get_not_invoiced_order_rows( $customers ) );
-
-        if ( '' !== $payment_method_filter ) {
-            $groups = array_filter(
-                $groups,
-                function( array $group ) use ( $payment_method_filter ): bool {
-                    $method = $group['payment_method'];
-                    return ( $method === $payment_method_filter ) || ( empty( $method ) && 'no-payment-method' === $payment_method_filter );
-                }
-            );
-        }
+        $groups = $this->build_order_groups( $this->get_not_invoiced_order_rows( $customers, $payment_method_filter ) );
 
         if ( '' !== $search_filter ) {
             $groups = array_filter(
@@ -587,88 +577,13 @@ class RMA_WC_Collective_Invoicing {
     }
 
     /**
-     * Fetch completed orders without invoice as lightweight rows.
+     * Fetch completed orders without invoice as lightweight rows (HPOS).
      *
-     * @param array $customers Optional customer IDs.
+     * @param array  $customers Optional customer IDs.
+     * @param string $payment_method_filter Payment method filter.
      * @return array
      */
-    private function get_not_invoiced_order_rows( array $customers = array() ): array {
-        if ( $this->is_hpos_enabled() ) {
-            return $this->get_not_invoiced_order_rows_hpos( $customers );
-        }
-
-        global $wpdb;
-
-        $invoice_from_date = $this->get_invoice_from_date();
-        $params            = array();
-
-        $sql = "
-            SELECT
-                p.ID AS order_id,
-                CAST(COALESCE(customer_user.meta_value, '0') AS UNSIGNED) AS user_id,
-                COALESCE(payment_method.meta_value, '') AS payment_method,
-                COALESCE(prices_include_tax.meta_value, 'no') AS prices_include_tax
-            FROM {$wpdb->posts} p
-            LEFT JOIN {$wpdb->postmeta} customer_user
-                ON customer_user.post_id = p.ID AND customer_user.meta_key = '_customer_user'
-            LEFT JOIN {$wpdb->postmeta} payment_method
-                ON payment_method.post_id = p.ID AND payment_method.meta_key = '_payment_method'
-            LEFT JOIN {$wpdb->postmeta} prices_include_tax
-                ON prices_include_tax.post_id = p.ID AND prices_include_tax.meta_key = '_prices_include_tax'
-            LEFT JOIN {$wpdb->postmeta} rma_invoice
-                ON rma_invoice.post_id = p.ID AND rma_invoice.meta_key = '_rma_invoice'
-            WHERE p.post_type = 'shop_order'
-              AND p.post_status = 'wc-completed'
-              AND rma_invoice.post_id IS NULL
-        ";
-
-        if ( 0 < $invoice_from_date ) {
-            // Approximate completion date for CPT orders via modified date.
-            $sql      .= ' AND p.post_modified_gmt >= %s';
-            $params[] = gmdate( 'Y-m-d H:i:s', $invoice_from_date );
-        }
-
-        if ( ! empty( $customers ) ) {
-            $customer_ids = array_map( 'intval', $customers );
-            $placeholders = implode( ', ', array_fill( 0, count( $customer_ids ), '%d' ) );
-            $sql         .= " AND CAST(COALESCE(customer_user.meta_value, '0') AS UNSIGNED) IN ({$placeholders})";
-            $params       = array_merge( $params, $customer_ids );
-        }
-
-        $sql .= ' ORDER BY p.ID ASC';
-
-        if ( ! empty( $params ) ) {
-            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-            $sql = $wpdb->prepare( $sql, $params );
-        }
-
-        // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-        $rows = $wpdb->get_results( $sql, ARRAY_A );
-        if ( ! is_array( $rows ) ) {
-            return array();
-        }
-
-        return array_map(
-            static function( array $row ): array {
-                $tax_value = strtolower( (string) $row['prices_include_tax'] );
-                return array(
-                    'order_id'       => (int) $row['order_id'],
-                    'user_id'        => (int) $row['user_id'],
-                    'payment_method' => (string) $row['payment_method'],
-                    'tax_included'   => in_array( $tax_value, array( 'yes', '1', 'true' ), true ),
-                );
-            },
-            $rows
-        );
-    }
-
-    /**
-     * Fetch completed orders without invoice for HPOS stores.
-     *
-     * @param array $customers Optional customer IDs.
-     * @return array
-     */
-    private function get_not_invoiced_order_rows_hpos( array $customers = array() ): array {
+    private function get_not_invoiced_order_rows( array $customers = array(), string $payment_method_filter = '' ): array {
         global $wpdb;
 
         $orders_table      = $wpdb->prefix . 'wc_orders';
@@ -704,6 +619,8 @@ class RMA_WC_Collective_Invoicing {
             $params       = array_merge( $params, $customer_ids );
         }
 
+        $sql = $this->append_payment_method_sql( $sql, $payment_method_filter, 'o.payment_method', $params );
+
         $sql .= ' ORDER BY o.id ASC';
 
         if ( ! empty( $params ) ) {
@@ -732,15 +649,27 @@ class RMA_WC_Collective_Invoicing {
     }
 
     /**
-     * Determine whether WooCommerce HPOS is active.
+     * Append payment method filter clause to SQL.
      *
-     * @return bool
+     * @param string $sql SQL query fragment.
+     * @param string $payment_method_filter Payment method filter value.
+     * @param string $column Column or expression to filter on.
+     * @param array  $params Prepared statement params (by reference).
+     * @return string
      */
-    private function is_hpos_enabled(): bool {
-        if ( ! class_exists( '\Automattic\WooCommerce\Utilities\OrderUtil' ) ) {
-            return false;
+    private function append_payment_method_sql( string $sql, string $payment_method_filter, string $column, array &$params ): string {
+        if ( '' === $payment_method_filter ) {
+            return $sql;
         }
-        return \Automattic\WooCommerce\Utilities\OrderUtil::custom_orders_table_usage_is_enabled();
+
+        if ( 'no-payment-method' === $payment_method_filter ) {
+            return $sql . " AND ({$column} IS NULL OR {$column} = '')";
+        }
+
+        $sql     .= " AND {$column} = %s";
+        $params[] = $payment_method_filter;
+
+        return $sql;
     }
 
     /**
