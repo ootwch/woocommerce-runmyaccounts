@@ -31,6 +31,7 @@ class RMA_WC_Admin_Collective_Invoice {
 		add_action( 'admin_menu', array( $this, 'add_menu_entry' ), 12 );
 		add_action( 'admin_post_collective_invoicing_form_response', array( $this, 'start_billing_run' ) );
 		add_filter( 'set-screen-option', array( $this, 'set_screen_option' ), 10, 3 );
+		add_action( 'wp_ajax_rma_invoice_dashboard_group_details', array( $this, 'ajax_group_details' ) );
 	}
 
 	public function set_screen_option( $status, $option, $value ) {
@@ -275,6 +276,46 @@ class RMA_WC_Admin_Collective_Invoice {
 	}
 
 
+
+	/**
+	 * AJAX: load invoice line items for one dashboard group.
+	 *
+	 * @return void
+	 */
+	public function ajax_group_details() {
+		check_ajax_referer( 'rma_invoice_dashboard_details', 'nonce' );
+
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Permission denied.', 'rma-wc' ) ), 403 );
+		}
+
+		$invoice_id     = isset( $_POST['invoice_id'] ) ? sanitize_text_field( wp_unslash( $_POST['invoice_id'] ) ) : '';
+		$payment_method = isset( $_POST['payment_method'] ) ? sanitize_text_field( wp_unslash( $_POST['payment_method'] ) ) : '';
+		$order_ids      = isset( $_POST['order_ids'] ) ? array_map( 'intval', wp_parse_list( wp_unslash( $_POST['order_ids'] ) ) ) : array();
+
+		if ( '' === $invoice_id || empty( $order_ids ) ) {
+			wp_send_json_error( array( 'message' => __( 'Missing invoice data.', 'rma-wc' ) ), 400 );
+		}
+
+		$collective = new RMA_WC_Collective_Invoicing();
+		$expected   = $collective->get_invoice_id_from_order_id( (int) $order_ids[0] );
+		if ( $expected !== $invoice_id ) {
+			wp_send_json_error( array( 'message' => __( 'Invoice group mismatch.', 'rma-wc' ) ), 400 );
+		}
+
+		$item = $collective->build_dashboard_group_display( $order_ids, $payment_method );
+		if ( null === $item ) {
+			wp_send_json_error( array( 'message' => __( 'Could not build invoice details.', 'rma-wc' ) ), 500 );
+		}
+
+		$table = new RMA_WC_Collective_Invoice_Table();
+		wp_send_json_success(
+			array(
+				'html'       => $table->get_order_details_html( $item ),
+				'total_html' => wp_kses_post( wc_price( $table->get_invoice_parts_total( $item ) ) ),
+			)
+		);
+	}
 
 }
 

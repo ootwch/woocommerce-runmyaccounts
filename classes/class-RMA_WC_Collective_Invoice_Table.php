@@ -60,6 +60,13 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 	);
 
 	/**
+	 * Current page group metadata from pass-1 (for bulk confirm hydration).
+	 *
+	 * @var array
+	 */
+	private array $current_page_groups = array();
+
+	/**
 	 * Constructor, we override the parent to pass our own arguments
 	 * We usually focus on three parameters: singular and plural labels, as well as whether the class supports AJAX.
 	 */
@@ -126,11 +133,26 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 					wp_die( 'Current user does not have the permission to create invoices.' );
 				}
 
-				/*
-				* -- Set current page to 1 --
-				*/
-
 				unset( $_GET['paged'] );
+
+				$selected_invoice_ids = ! empty( $_POST['invoice_id'] )
+					? array_map( 'sanitize_text_field', array_map( 'wp_unslash', (array) $_POST['invoice_id'] ) )
+					: array();
+
+				if ( ! empty( $selected_invoice_ids ) && ! empty( $this->current_page_groups ) ) {
+					$groups_to_hydrate = array_values(
+						array_filter(
+							$this->current_page_groups,
+							static function( array $group ) use ( $selected_invoice_ids ): bool {
+								return in_array( $group['invoice_id'] ?? '', $selected_invoice_ids, true );
+							}
+						)
+					);
+					if ( ! empty( $groups_to_hydrate ) ) {
+						$collective    = new RMA_WC_Collective_Invoicing();
+						$this->items   = $collective->build_display_invoices_for_groups( $groups_to_hydrate );
+					}
+				}
 
 				$this->execution_mode = 'confirm';
 				return;
@@ -236,7 +258,11 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		}
 	}
 
-	public function enqueue_admin_js() {
+	public function enqueue_admin_js( $hook ) {
+
+		if ( 'woocommerce_page_invoice-dashboard' !== $hook ) {
+			return;
+		}
 
 		// This does not trigger as the prop change does not trigger an event and wp is not handling <it class=""></it>
 		// common.js 1183
@@ -302,20 +328,60 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
         
         });
 
-		// hide/unhide invoice details
+		// hide/unhide invoice details (lazy-loaded via AJAX when collapsed)
 		jQuery('a.expand-order-details-toggle').click( function(event) {
 			event.preventDefault();
 			var toggle = jQuery( this );
 			var invoiceId = toggle.attr( 'invoice-id' );
-			var rows = jQuery( 'tr.order-details-' + invoiceId );
+			var container = jQuery( 'tr.order-details-container-' + invoiceId );
 			var expanded = 'true' === toggle.attr( 'aria-expanded' );
 
-			rows.toggle();
-			toggle.attr( 'aria-expanded', expanded ? 'false' : 'true' );
-			toggle.find( '.order-details-toggle-icon' ).text( expanded ? '▸' : '▾' );
-			toggle.find( '.order-details-toggle-label' ).text(
-				expanded ? toggle.attr( 'data-expand-label' ) : toggle.attr( 'data-collapse-label' )
-			);
+			if ( expanded ) {
+				container.hide();
+				toggle.attr( 'aria-expanded', 'false' );
+				toggle.find( '.order-details-toggle-icon' ).text( '▸' );
+				toggle.find( '.order-details-toggle-label' ).text( toggle.attr( 'data-expand-label' ) );
+				return;
+			}
+
+			var finishExpand = function() {
+				container.show();
+				toggle.attr( 'aria-expanded', 'true' );
+				toggle.find( '.order-details-toggle-icon' ).text( '▾' );
+				toggle.find( '.order-details-toggle-label' ).text( toggle.attr( 'data-collapse-label' ) );
+				jQuery('input[name=\"order_id[]\"').first().change();
+			};
+
+			if ( 'true' === toggle.attr( 'data-details-loaded' ) ) {
+				finishExpand();
+				return;
+			}
+
+			var loadingCell = container.find( '.order-details-loading' );
+			loadingCell.show();
+			container.show();
+
+			jQuery.post( rmaInvoiceDashboard.ajaxUrl, {
+				action: 'rma_invoice_dashboard_group_details',
+				nonce: rmaInvoiceDashboard.nonce,
+				invoice_id: invoiceId,
+				payment_method: toggle.attr( 'data-payment-method' ) || '',
+				order_ids: toggle.attr( 'data-order-ids' ) || ''
+			}).done( function( response ) {
+				if ( ! response || ! response.success ) {
+					loadingCell.text( rmaInvoiceDashboard.errorLabel );
+					return;
+				}
+				container.find( '.order-details-parts tbody' ).html( response.data.html );
+				if ( response.data.total_html ) {
+					toggle.closest( 'tr.row_invoice' ).find( 'td.col_price .invoice_price_total' ).html( response.data.total_html );
+				}
+				toggle.attr( 'data-details-loaded', 'true' );
+				loadingCell.hide();
+				finishExpand();
+			}).fail( function() {
+				loadingCell.text( rmaInvoiceDashboard.errorLabel );
+			});
 		})
 
 		// Invoice title / text tabs
@@ -332,9 +398,18 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
         
         ";
 
-		wp_register_script( 'collective_invoice_table_js', false, array(), 124, true );
+		wp_register_script( 'collective_invoice_table_js', false, array( 'jquery' ), 125, true );
+		wp_localize_script(
+			'collective_invoice_table_js',
+			'rmaInvoiceDashboard',
+			array(
+				'ajaxUrl'      => admin_url( 'admin-ajax.php' ),
+				'nonce'        => wp_create_nonce( 'rma_invoice_dashboard_details' ),
+				'errorLabel'   => __( 'Could not load invoice details.', 'rma-wc' ),
+			)
+		);
 		wp_add_inline_script( 'collective_invoice_table_js', $script );
-		wp_enqueue_script( 'collective_invoice_table_js', '', array( 'common-js' ), 124, true );
+		wp_enqueue_script( 'collective_invoice_table_js' );
 	}
 
 	/**
@@ -649,12 +724,22 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 				}
 			)
 		);
-		$display_data = $t->build_display_invoices_for_groups( $current_page_groups );
+		$this->current_page_groups = $current_page_groups;
+
+		$boat_rental_filter = isset( $_REQUEST['boat-rental-filter'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['boat-rental-filter'] ) ) : '';
+		$bulk_action        = $this->current_action();
+		$use_lazy_details   = ( '' === $boat_rental_filter && 'plan' === $this->execution_mode && 'confirm-invoice' !== $bulk_action );
+
+		if ( $use_lazy_details ) {
+			$display_data = $t->build_display_invoice_summaries_for_groups( $current_page_groups );
+		} else {
+			$display_data = $t->build_display_invoices_for_groups( $current_page_groups );
+		}
 
 		// Only show selected invoiced
 		$invoice_ids = ! empty( $_POST['invoice_id'] ) ? array_map( 'esc_attr', array_map( 'sanitize_text_field', wp_unslash( $_POST['invoice_id'] ) ) ) : array();
 		if ( ! empty( $invoice_ids ) ) {
-			$display_data = array_filter( $display_data, fn( $i ) => in_array( $i, $invoice_ids, true ), ARRAY_FILTER_USE_KEY );
+			$display_data = array_filter( $display_data, fn( $key ) => in_array( $key, $invoice_ids, true ), ARRAY_FILTER_USE_KEY );
 			unset( $_GET['paged'] );
 			unset( $_REQUEST['paged'] );
 		}
@@ -662,7 +747,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		// Payment method filter is already applied in first pass.
 
 		// filter product class (all/non-rental/rental).
-		$boat_rental_filter = isset( $_REQUEST['boat-rental-filter'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['boat-rental-filter'] ) ) : '';
 		if ( '' !== $boat_rental_filter ) {
 			$display_data = array_filter(
 				array_map(
@@ -757,8 +841,11 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		/* translators: %d is the number of orders contained in an invoice group. */
 		$collapse_label = sprintf( __( 'Hide details (%d)', 'wc-rma' ), $order_count );
 		printf(
-			'<div class="order-details-toggle-wrap" style="margin-top:2px;"><a href="#" class="expand-order-details-toggle" style="display:inline-block;white-space:nowrap;" invoice-id="%1$s" aria-expanded="false" data-expand-label="%2$s" data-collapse-label="%3$s"><span class="order-details-toggle-icon" aria-hidden="true">▸</span> <span class="order-details-toggle-label">%4$s</span></a></div>',
+			'<div class="order-details-toggle-wrap" style="margin-top:2px;"><a href="#" class="expand-order-details-toggle" style="display:inline-block;white-space:nowrap;" invoice-id="%1$s" data-order-ids="%2$s" data-payment-method="%3$s" data-details-loaded="%4$s" aria-expanded="false" data-expand-label="%5$s" data-collapse-label="%6$s"><span class="order-details-toggle-icon" aria-hidden="true">▸</span> <span class="order-details-toggle-label">%7$s</span></a></div>',
 			esc_attr( $invoice_id ),
+			esc_attr( implode( ',', array_map( 'intval', $item['order_ids'] ?? array() ) ) ),
+			esc_attr( (string) ( $item['data']['invoice']['paymentmethod'] ?? '' ) ),
+			! empty( $item['details_loaded'] ) ? 'true' : 'false',
 			esc_attr( $expand_label ),
 			esc_attr( $collapse_label ),
 			esc_html( $expand_label )
@@ -806,12 +893,26 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 	}
 
 	public function column_col_price( $item ) {
-		$total_amount = 0;
-		foreach ( $item['data']['part'] as $part ) {
-			$total_amount += $part['sellprice'];
+		if ( isset( $item['summary_total'] ) && empty( $item['details_loaded'] ) ) {
+			echo '<div class="invoice_price_total">' . wp_kses_post( wc_price( (float) $item['summary_total'] ) ) . '</div>' . PHP_EOL;
+			return;
 		}
 
-		echo '<div class="invoice_price_total">' . wp_kses_post( wc_price( $total_amount ) ) . '</div>' . PHP_EOL;
+		echo '<div class="invoice_price_total">' . wp_kses_post( wc_price( $this->get_invoice_parts_total( $item ) ) ) . '</div>' . PHP_EOL;
+	}
+
+	/**
+	 * Sum sell prices from invoice line items.
+	 *
+	 * @param array $item Invoice row.
+	 * @return float
+	 */
+	public function get_invoice_parts_total( array $item ): float {
+		$total_amount = 0.0;
+		foreach ( $item['data']['part'] ?? array() as $part ) {
+			$total_amount += (float) ( $part['sellprice'] ?? 0 );
+		}
+		return $total_amount;
 	}
 
 	/**
@@ -865,20 +966,40 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 		$invoice_id = $item['data']['invoice']['invnumber'];
 
-		// Get the order data.
-		$order_rows   = '';
-		$total_amount = 0;
+		if ( ! empty( $item['details_loaded'] ) ) {
+			echo PHP_EOL . '<tr class="no-items order-details-container-' . esc_attr( $invoice_id ) . '">' . PHP_EOL;
+			echo '<td class="colspanchange" colspan="' . ( $this->get_column_count() ) . '">' . PHP_EOL;
+			echo '<table class="widefat fixed order-details-parts" cellspacing="0">' . PHP_EOL;
+			echo '<tbody>' . PHP_EOL;
+			echo $this->get_order_details_html( $item ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			echo '</tbody>' . PHP_EOL;
+			echo '</table>' . PHP_EOL;
+			echo '</td>' . PHP_EOL;
+			echo '</tr>' . PHP_EOL;
+			return;
+		}
 
-		$alternate = false;
-
-		echo PHP_EOL . '<tr class="no-items">' . PHP_EOL;
-
+		echo PHP_EOL . '<tr class="no-items order-details-container-' . esc_attr( $invoice_id ) . '" style="display:none">' . PHP_EOL;
 		echo '<td class="colspanchange" colspan="' . ( $this->get_column_count() ) . '">' . PHP_EOL;
+		echo '<p class="order-details-loading" style="display:none;margin:0.5em 0;">' . esc_html__( 'Loading…', 'rma-wc' ) . '</p>' . PHP_EOL;
+		echo '<table class="widefat fixed order-details-parts" cellspacing="0">' . PHP_EOL;
+		echo '<tbody></tbody>' . PHP_EOL;
+		echo '</table>' . PHP_EOL;
+		echo '</td>' . PHP_EOL;
+		echo '</tr>' . PHP_EOL;
+	}
 
-		echo '<table class="widefat fixed" cellspacing="0">' . PHP_EOL;
-		echo '<thead>' . PHP_EOL;
-		echo '</thead' . PHP_EOL;
-		echo '<tbody>' . PHP_EOL;
+	/**
+	 * Render invoice line-item rows HTML for one group.
+	 *
+	 * @param array $item Invoice row.
+	 * @return string
+	 */
+	public function get_order_details_html( array $item ): string {
+		ob_start();
+
+		$invoice_id = $item['data']['invoice']['invnumber'];
+		$alternate  = false;
 
 		foreach ( $item['data']['part'] as $part ) {
 
@@ -902,48 +1023,23 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 				}
 			}
 
-			// add info to facilitate automated testing.
-			// $row_info = sprintf( 'data-invoice_id=%s', $invoice_id );
-			// $row_info = sprintf( 'data-customer_id=%s', $user_data->ID );
-			// $row_info = sprintf( 'data-customernumber=%s', $invoice_data['invoice']['customernumber'] );
-
-			echo sprintf( PHP_EOL . '<tr style="display:none" class="%s %s">', $alternate ? 'alternate' : '', 'order-details-' . esc_attr( $invoice_id ) );
+			printf(
+				'<tr class="%s order-details-%s">',
+				$alternate ? 'alternate' : '',
+				esc_attr( $invoice_id )
+			);
 
 			$alternate = ! $alternate;
-			// Checkbox for orders
-			/*
-			$order_rows .= '<td>';
-			$order_rows .= sprintf(
-				'<label class="screen-reader-text" for="invoice_' . $invoice_id . '">' . sprintf( __( 'Select %s' ), $invoice_id ) . '</label>'
-				. '<input type="checkbox" data-invoice_id=' . $invoice_id
-				. ( ( 'plan' === $this->execution_mode ) ? '' : ' disabled ' )
-				. ' name="order_id[]" data-order_id=' . $part['order_id'] . ' value="' . $part['order_id'] . '" checked />'
-			);
-			$order_rows .= '</td>' . PHP_EOL;
-			*/
+
 			echo "<td class='column-partnumber'>" . esc_html( $part['partnumber'] ) . '</td>' . PHP_EOL;
 			echo "<td class='column-description'>" . wp_kses_post( $description ) . '</td>' . PHP_EOL;
 			echo "<td class='column-projectnumber'>" . esc_html( $part['projectnumber'] ?? '' ) . '</td>' . PHP_EOL;
-
-			// Price and selected price.
 			echo '<td class="column-sellprice">';
-			echo '<div>' . wc_price( $part['sellprice'] ) . '</div>';
+			echo '<div>' . wp_kses_post( wc_price( $part['sellprice'] ) ) . '</div>';
 			echo '</td>' . PHP_EOL;
 			echo '</tr>' . PHP_EOL;
-
-			$total_amount += $part['sellprice'];
-
-			flush();
-			ob_flush();
 		}
 
-		echo '</tbody>' . PHP_EOL;
-		echo '</table>' . PHP_EOL;
-
-		echo '</td>' . PHP_EOL;
-		echo '</tr>' . PHP_EOL;
+		return (string) ob_get_clean();
 	}
 }
-
-
-

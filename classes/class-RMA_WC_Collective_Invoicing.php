@@ -330,11 +330,12 @@ class RMA_WC_Collective_Invoicing {
             $first_order    = wc_get_order( $first_order_id );
 
             $display_invoices[ $invoice_id ] = array(
-                'data'        => $data,
-                'user_id'     => false !== $first_order ? $first_order->get_customer_id() : 0,
-                'order_ids'   => array_values( $order_ids ),
-                'order_count' => count( $order_ids ),
-                'page_number' => $group['page_number'] ?? 1,
+                'data'            => $data,
+                'user_id'         => false !== $first_order ? $first_order->get_customer_id() : 0,
+                'order_ids'       => array_values( $order_ids ),
+                'order_count'     => count( $order_ids ),
+                'page_number'     => $group['page_number'] ?? 1,
+                'details_loaded'  => true,
             );
 
             if ( false !== $first_order ) {
@@ -343,6 +344,91 @@ class RMA_WC_Collective_Invoicing {
         }
 
         return $display_invoices;
+    }
+
+    /**
+     * Build lightweight invoice rows for the dashboard list (no line items).
+     *
+     * @param array $groups Group metadata from pass-1.
+     * @return array
+     */
+    public function build_display_invoice_summaries_for_groups( array $groups ): array {
+        $display_invoices = array();
+        $invoice          = new RMA_WC_API();
+
+        foreach ( $groups as $group ) {
+            $order_ids = $group['order_ids'] ?? array();
+            if ( empty( $order_ids ) ) {
+                continue;
+            }
+
+            asort( $order_ids, SORT_NUMERIC );
+
+            $first_order_id = (int) reset( $order_ids );
+            $order_details  = $invoice->get_wc_order_details( $first_order_id );
+            if ( empty( $order_details ) ) {
+                continue;
+            }
+
+            $invoice_id = $this->get_invoice_id_from_order_id( $first_order_id );
+            $data       = $invoice->get_invoice_data( $order_details, array(), $invoice_id, '', '' );
+            if ( isset( $data['error'] ) ) {
+                continue;
+            }
+
+            $data['invoice']['paymentmethod'] = (string) ( $group['payment_method'] ?? '' );
+
+            $summary_total = 0.0;
+            $first_order   = wc_get_order( $first_order_id );
+            foreach ( $order_ids as $order_id ) {
+                $order = wc_get_order( (int) $order_id );
+                if ( false === $order ) {
+                    continue;
+                }
+                $summary_total += (float) $order->get_total();
+                RMA_WC_API::delete_order_cache( $order );
+            }
+
+            $display_invoices[ $invoice_id ] = array(
+                'data'            => $data,
+                'user_id'         => false !== $first_order ? $first_order->get_customer_id() : 0,
+                'order_ids'       => array_values( $order_ids ),
+                'order_count'     => count( $order_ids ),
+                'page_number'     => $group['page_number'] ?? 1,
+                'summary_total'   => $summary_total,
+                'details_loaded'  => false,
+            );
+        }
+
+        return $display_invoices;
+    }
+
+    /**
+     * Build one full dashboard invoice payload from order IDs.
+     *
+     * @param array  $order_ids Order IDs in the group.
+     * @param string $payment_method Payment method slug.
+     * @return array|null
+     */
+    public function build_dashboard_group_display( array $order_ids, string $payment_method = '' ): ?array {
+        $order_ids = array_values( array_filter( array_map( 'intval', $order_ids ) ) );
+        if ( empty( $order_ids ) ) {
+            return null;
+        }
+
+        $first_order = wc_get_order( (int) $order_ids[0] );
+        $group       = array(
+            'order_ids'       => $order_ids,
+            'payment_method'  => $payment_method,
+            'user_id'         => false !== $first_order ? (int) $first_order->get_customer_id() : 0,
+        );
+
+        $display = $this->build_display_invoices_for_groups( array( $group ) );
+        if ( empty( $display ) ) {
+            return null;
+        }
+
+        return reset( $display );
     }
 
     /**
@@ -768,7 +854,7 @@ class RMA_WC_Collective_Invoicing {
      * @param int $order_id Order ID.
      * @return string
      */
-    private function get_invoice_id_from_order_id( int $order_id ): string {
+    public function get_invoice_id_from_order_id( int $order_id ): string {
         $settings = get_option( 'wc_rma_settings' );
         $prefix   = defined( 'RMA_INVOICE_PREFIX' ) ? (string) RMA_INVOICE_PREFIX : (string) ( $settings['rma-invoice-prefix'] ?? '' );
         $digits   = defined( 'RMA_INVOICE_DIGITS' ) ? (int) RMA_INVOICE_DIGITS : (int) ( $settings['rma-digits'] ?? 0 );
