@@ -299,20 +299,23 @@ class RMA_WC_Invoice {
 			return;
 		}
 
-            $status_field = isset( $_GET[ 'rma_status_field' ] ) ? $_GET[ 'rma_status_field' ] : '';
+            $status_field = isset( $_GET['rma_status_field'] ) ? sanitize_text_field( wp_unslash( $_GET['rma_status_field'] ) ) : '';
 
 		?>
 				<select name="rma_status_field">
 					<option selected="selected" value="any" <?php selected( $status_field, 'any' ); ?>>Any Invoice Status</option>
 					<option value="invoiced" <?php selected( $status_field, 'invoiced' ); ?>>Invoiced</option>
 					<option value="empty" <?php selected( $status_field, 'empty' ); ?>>No Invoice</option>
+					<option value="OPEN" <?php selected( $status_field, 'OPEN' ); ?>>OPEN</option>
+					<option value="OVERDUE" <?php selected( $status_field, 'OVERDUE' ); ?>>OVERDUE</option>
+					<option value="PAID" <?php selected( $status_field, 'PAID' ); ?>>PAID</option>
 				</select>
 			<?php
 	}
 
 	public function filter_orders_hpos( $query_args ) {
 
-            $status_field = isset( $_GET[ 'rma_status_field' ] ) ? $_GET[ 'rma_status_field' ] : '';
+            $status_field = isset( $_GET['rma_status_field'] ) ? sanitize_text_field( wp_unslash( $_GET['rma_status_field'] ) ) : '';
 
 		if ( 'any' === $status_field ) {
 			return $query_args;
@@ -339,6 +342,15 @@ class RMA_WC_Invoice {
 				'compare' => '!=',
 			);
 		}
+
+		if ( in_array( $status_field, array( 'OPEN', 'OVERDUE', 'PAID' ), true ) ) {
+			$meta_query[] = array(
+				'key'     => '_rma_invoice_status',
+				'value'   => $status_field,
+				'compare' => '=',
+			);
+		}
+
 		$query_args['meta_query'] = $meta_query;
 
 
@@ -357,12 +369,12 @@ class RMA_WC_Invoice {
 			return;
 		}
 
-            $status_field = isset( $_GET[ 'rma_status_field' ] ) ? $_GET[ 'rma_status_field' ] : '';
+            $status_field = isset( $_GET['rma_status_field'] ) ? sanitize_text_field( wp_unslash( $_GET['rma_status_field'] ) ) : '';
 
 		if ( 'any' === $status_field ) {
 			return $query;
 		}
-            $meta_query = (array)$query->get('meta_query');
+            $meta_query = (array) $query->get( 'meta_query' );
 		if ( 'empty' === $status_field ) {
 			$meta_query[] = array(
 				'relation' => 'OR',
@@ -384,6 +396,14 @@ class RMA_WC_Invoice {
                         'value' => '',
 					'compare' => '!=',
                     )
+			);
+		}
+
+		if ( in_array( $status_field, array( 'OPEN', 'OVERDUE', 'PAID' ), true ) ) {
+			$meta_query[] = array(
+				'key'     => '_rma_invoice_status',
+				'value'   => $status_field,
+				'compare' => '=',
 			);
 		}
 
