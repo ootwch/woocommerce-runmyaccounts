@@ -27,12 +27,6 @@ class RMA_WC_Invoice {
 
 	public function admin_init_hooks() {
 
-				// allow order query by invoice number.
-				add_filter( 'woocommerce_order_data_store_cpt_get_orders_query', array( $this, 'handle_invoice_number_query_var' ), 10, 2 );
-
-
-
-
 				// Add invoice column to order list.
 		$is_hpos_enabled = class_exists( OrderUtil::class ) && OrderUtil::custom_orders_table_usage_is_enabled();
 		if ( ! $is_hpos_enabled ) {
@@ -64,6 +58,10 @@ class RMA_WC_Invoice {
 	}
 
 	public function init_hooks() {
+
+			// Allow order query by invoice number (init so cron can use wc_get_orders).
+			add_filter( 'woocommerce_order_data_store_cpt_get_orders_query', array( $this, 'handle_invoice_number_query_var' ), 10, 2 );
+			add_filter( 'woocommerce_order_query_args', array( $this, 'handle_invoice_number_query_var_hpos' ), 10, 1 );
 
 			// User profile invoice info
 
@@ -162,13 +160,37 @@ class RMA_WC_Invoice {
 	 */
 	function handle_invoice_number_query_var( $query, $query_vars ) {
 		if ( ! empty( $query_vars['invoice_number'] ) ) {
+			if ( ! isset( $query['meta_query'] ) ) {
+				$query['meta_query'] = array();
+			}
 			$query['meta_query'][] = array(
-                    'key' => '_rma_invoice',
-				'value' => esc_attr( $query_vars['invoice_number'] ),
+				'key'   => '_rma_invoice',
+				'value' => $query_vars['invoice_number'],
 			);
 		}
 
 		return $query;
+	}
+
+	/**
+	 * Allow querying orders by invoice number (HPOS).
+	 *
+	 * @param array $query_args Query args from WC_Order_Query.
+	 * @return array Modified query args.
+	 */
+	function handle_invoice_number_query_var_hpos( $query_args ) {
+		if ( ! empty( $query_args['invoice_number'] ) ) {
+			if ( ! isset( $query_args['meta_query'] ) ) {
+				$query_args['meta_query'] = array();
+			}
+			$query_args['meta_query'][] = array(
+				'key'   => '_rma_invoice',
+				'value' => $query_args['invoice_number'],
+			);
+			unset( $query_args['invoice_number'] );
+		}
+
+		return $query_args;
 	}
 
 		/**
@@ -198,14 +220,16 @@ class RMA_WC_Invoice {
                     if ( '' === $invoice_number ) {
                         continue;
                     }
-                    $orders = wc_get_orders( array( 'invoice_number' => $invoice_number ) );
-                    foreach( $orders as $order ) {
-                        $debug_var = (json_encode(array(
-                            'id' => $order->get_id(),
-                            'inv'=> $invoice_number,
-                            'stat'=>$status,
-                            'array'=>$status_array
-                        )));
+                    $orders = wc_get_orders(
+						array(
+							'invoice_number' => $invoice_number,
+							'limit'          => -1,
+						)
+					);
+                    foreach ( $orders as $order ) {
+						if ( ! $order->get_meta( '_rma_invoice', true ) ) {
+							continue;
+						}
 
 					$order->update_meta_data( '_rma_invoice_status', sanitize_text_field( $status ) );
                         $order->update_meta_data('_rma_invoice_status_timestamp', current_datetime()->format('c') );
@@ -248,15 +272,20 @@ class RMA_WC_Invoice {
 
 		switch ( $column ) {
 
-                case 'rma_invoice_status' :
+			case 'rma_invoice_status':
+				if ( ! $order->get_meta( '_rma_invoice', true ) ) {
+					echo '&mdash;';
+					break;
+				}
 				echo '<mark class="order-status" title="';
 				echo __( 'Last updated: ', 'rma-wc' );
-                    echo wp_date( get_option( 'date_format' ),strtotime( $order->get_meta('_rma_invoice_status_timestamp', true ) ) );
+				echo wp_date( get_option( 'date_format' ), strtotime( $order->get_meta( '_rma_invoice_status_timestamp', true ) ) );
 				echo ' ';
-                    echo wp_date( get_option( 'time_format' ),strtotime( $order->get_meta( '_rma_invoice_status_timestamp', true ) ) );
+				echo wp_date( get_option( 'time_format' ), strtotime( $order->get_meta( '_rma_invoice_status_timestamp', true ) ) );
 				echo '"><span>';
-				echo $order->get_meta( '_rma_invoice_status', true );
-                    echo "</span></mark>";
+				echo esc_html( $order->get_meta( '_rma_invoice_status', true ) );
+				echo '</span></mark>';
+				break;
 
 			default:
 		}

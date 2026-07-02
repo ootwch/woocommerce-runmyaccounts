@@ -146,7 +146,7 @@ if ( !class_exists('RMA_WC_API') ) {
 
 			DEFINE( 'RMA_GLOBAL_PAYMENT_PERIOD', ( $settings[ 'rma-payment-period' ] ?? '0') ); // default value 0 days
 			DEFINE( 'RMA_INVOICE_PREFIX', ( $settings[ 'rma-invoice-prefix' ] ?? '') );
-			DEFINE( 'RMA_INVOICE_DIGITS', ( isset( $settings['rma-digits'] ) ? $settings[ 'rma-invoice-description' ] : '' ) );
+			DEFINE( 'RMA_INVOICE_DIGITS', ( isset( $settings['rma-digits'] ) ? $settings['rma-digits'] : '' ) );
 
 			// if rma-loglevel ist not set, LOGLEVEL is set to error by default
 			if( isset( $settings['rma-loglevel'] ) ) {
@@ -1175,19 +1175,10 @@ if ( !class_exists('RMA_WC_API') ) {
 					return false;
 
 				} else {
-					// Parse response
-					$array = json_decode( json_encode( (array) $xml ), true );
-
-					// Transform into array
 					$status_array = array();
-					foreach ( $array as $value ) {
-
-						foreach ( $value as $key => $invoice ) {
-							$number = $invoice['invnumber'];
-							$status = $invoice['status'];
-
-							$status_array[ $number ] = $status;
-						}
+					foreach ( $xml->invoice as $invoice ) {
+						$row = json_decode( json_encode( (array) $invoice ), true );
+						$status_array[ $row['invnumber'] ] = $row['status'];
 					}
 					return ( ! empty( $status_array ) ? $status_array : false );
 				}
