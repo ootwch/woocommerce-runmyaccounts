@@ -107,10 +107,7 @@ class RMA_WC_Rental_And_Booking {
 			}
 			$rental_booking_article = $settings['rma-product-rnb-cancelation-article'];
 
-			$canceled_order_id = $item_rental_days_and_cost['price_breakdown']['order_modification_original_order'];
-			$canceled_order    = wc_get_order( $canceled_order_id );
-
-			$canceled_order_booking_time = wp_date( $datetime_format, $canceled_order->get_date_created() );
+			$canceled_order_id = $item_rental_days_and_cost['price_breakdown']['order_modification_original_order'] ?? null;
 		} else {
 			$rental_booking_article = $settings['rma-product-rnb-rental-article'];
 			if ( ! isset( $rental_booking_article ) ) {

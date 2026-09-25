@@ -710,18 +710,26 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		$bulk_action        = $this->current_action();
 		$use_lazy_details   = ( '' === $boat_rental_filter && 'plan' === $this->execution_mode && 'confirm-invoice' !== $bulk_action );
 
-		if ( $use_lazy_details ) {
-			$display_data = $t->build_display_invoice_summaries_for_groups( $current_page_groups );
-		} else {
-			$display_data = $t->build_display_invoices_for_groups( $current_page_groups );
-		}
-
-		// Only show selected invoiced
+		// Build only the selected invoice groups.
 		$invoice_ids = ! empty( $_POST['invoice_id'] ) ? array_map( 'esc_attr', array_map( 'sanitize_text_field', wp_unslash( $_POST['invoice_id'] ) ) ) : array();
+		$groups_to_build = $current_page_groups;
 		if ( ! empty( $invoice_ids ) ) {
-			$display_data = array_filter( $display_data, fn( $key ) => in_array( $key, $invoice_ids, true ), ARRAY_FILTER_USE_KEY );
+			$groups_to_build = array_values(
+				array_filter(
+					$current_page_groups,
+					static function( array $group ) use ( $invoice_ids ): bool {
+						return in_array( $group['invoice_id'] ?? '', $invoice_ids, true );
+					}
+				)
+			);
 			unset( $_GET['paged'] );
 			unset( $_REQUEST['paged'] );
+		}
+
+		if ( $use_lazy_details ) {
+			$display_data = $t->build_display_invoice_summaries_for_groups( $groups_to_build );
+		} else {
+			$display_data = $t->build_display_invoices_for_groups( $groups_to_build );
 		}
 
 		// Payment method filter is already applied in first pass.
