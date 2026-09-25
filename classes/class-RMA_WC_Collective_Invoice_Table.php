@@ -308,26 +308,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
         );
         
 
-        // Create invoice action
-        jQuery('span.create_invoice a').click( function(event) { 
-            event.preventDefault(); 
-
-            current_invoice_id = event.currentTarget.dataset.invoice_id;
-            current_orders = jQuery('input:checked[data-invoice_id=\"' + current_invoice_id + '\"]').map(function() {return jQuery(this).data('order_id') }).get();
-            console.log(current_orders);
-
-            arguments = new URLSearchParams({
-                _wp_nonce: event.currentTarget.dataset.nonce,
-                invoice_action: 'prepare_invoices',
-                invoice_id: event.currentTarget.dataset.invoice_id,
-                selected_order_ids: current_orders,
-            });
-        
-            window.location.href = window.location.href + '&' + arguments.toString();
-        
-        
-        });
-
 		// hide/unhide invoice details (lazy-loaded via AJAX when collapsed)
 		jQuery('a.expand-order-details-toggle').click( function(event) {
 			event.preventDefault();
@@ -829,7 +809,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		echo '<br>';
 		
 		$invoice_id = $item['data']['invoice']['invnumber'];
-		$nonce      = wp_create_nonce( 'create_single_invoice_' . $invoice_id );
 		echo esc_html( stripslashes( $invoice_id ) );
 
 		$order_count = count( $item['order_ids'] ?? array() );
@@ -850,11 +829,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			esc_attr( $collapse_label ),
 			esc_html( $expand_label )
 		);
-		
-		$actions = array(
-			'create_invoice' => sprintf( '<a href="#" data-nonce="%s" data-invoice_id="%s">%s</a>', $nonce, $invoice_id, __( 'Create Invoice', 'rma-wc' ) ),
-		);
-		echo $this->row_actions( $actions );
 	}
 
 	public function column_col_customer_number( $item ) {
