@@ -12,6 +12,10 @@ class RMA_WC_Collective_Invoicing {
     private const MAX_ORDERS_PER_GROUP = 100;
     private const MAX_ORDERS_PER_PAGE = 500;
 
+    public const NEXT_INVOICE_DATE_NONCE = 'rma_wc_next_invoice_date';
+
+    private const PERIODS = array( 'week', 'second_week', 'month', 'manually' );
+
     private $settings;
 
     public function __construct() {
@@ -38,20 +42,31 @@ class RMA_WC_Collective_Invoicing {
      */
     public function ajax_next_invoice_date(){
 
-        $period  = $_POST[ 'period' ];
-        $weekday = $_POST[ 'weekday' ];
+        if ( ! current_user_can( 'manage_options' ) ) {
+            wp_send_json_error( array( 'message' => __( 'You are not allowed to change the invoicing schedule.', 'rma-wc' ) ), 403 );
+        }
+
+        if ( ! check_ajax_referer( self::NEXT_INVOICE_DATE_NONCE, 'nonce', false ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed', 'rma-wc' ) ), 403 );
+        }
+
+        $period  = isset( $_POST['period'] ) ? sanitize_key( wp_unslash( $_POST['period'] ) ) : '';
+        $weekday = isset( $_POST['weekday'] ) ? sanitize_key( wp_unslash( $_POST['weekday'] ) ) : '';
+
+        if ( ! in_array( $period, self::PERIODS, true ) || ! in_array( $weekday, self::get_weekdays(), true ) ) {
+            wp_send_json_error( array( 'message' => __( 'Invalid invoicing schedule.', 'rma-wc' ) ), 400 );
+        }
 
         $dates   = self::get_next_invoice_date( $period, $weekday );
 
-        if( !empty( $dates ) ) {
-
-            $this->settings[ 'collective_invoice_next_date_ts' ] = strtotime(gmdate('Y-m-d', $dates[ 'next_date_ts' ] ) );
-            update_option( 'wc_rma_settings_collective_invoice', $this->settings );
-
+        if ( empty( $dates ) ) {
+            wp_send_json_error( array( 'message' => __( 'Invalid invoicing schedule.', 'rma-wc' ) ), 400 );
         }
 
-        echo $dates[ 'date' ] ?? '';
-        exit();
+        $this->settings[ 'collective_invoice_next_date_ts' ] = strtotime(gmdate('Y-m-d', $dates[ 'next_date_ts' ] ) );
+        update_option( 'wc_rma_settings_collective_invoice', $this->settings );
+
+        wp_send_json_success( array( 'date' => $dates['date'] ) );
     }
 
     /**

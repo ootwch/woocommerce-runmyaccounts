@@ -69,7 +69,14 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 			wp_register_style( 'wc-select2', plugins_url( '../assets/css/select2.min.css', __FILE__ ), false, '4.0.13' );
 			wp_enqueue_style( 'wc-select2' );
 
-			wp_enqueue_script( 'rma-admin-script', plugins_url( '../assets/js/admin.js', __FILE__ ), array('jquery'), get_option( 'wc_rma_version' ), 'true' );
+			wp_enqueue_script( 'rma-admin-script', plugins_url( '../assets/js/admin.js', __FILE__ ), array('jquery'), get_option( 'wc_rma_version' ) . '-' . filemtime( RMA_WC_PFAD . 'assets/js/admin.js' ), 'true' );
+			wp_localize_script(
+				'rma-admin-script',
+				'rmaWcAdmin',
+				array(
+					'nextInvoiceDateNonce' => wp_create_nonce( RMA_WC_Collective_Invoicing::NEXT_INVOICE_DATE_NONCE ),
+				)
+			);
 
 		}
 
@@ -95,7 +102,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
                 <h1><?php esc_html_e('Run my Accounts - Settings', 'run-my-accounts-for-woocommerce'); ?></h1>
 				<?php settings_errors(); ?>
                 <h2 class="nav-tab-wrapper">
-                    <a href="<?php echo admin_url( $this->admin_url ); ?>" class="nav-tab<?php echo ( 'general' == $active_page ? ' nav-tab-active' : '' ); ?>"><?php esc_html_e('General', 'run-my-accounts-for-woocommerce'); ?></a>
+                    <a href="<?php echo esc_url( admin_url( $this->admin_url ) ); ?>" class="nav-tab<?php echo ( 'general' == $active_page ? ' nav-tab-active' : '' ); ?>"><?php esc_html_e('General', 'run-my-accounts-for-woocommerce'); ?></a>
                     <a href="<?php echo esc_url( add_query_arg( array( 'tab' => 'accounting' ), admin_url( $this->admin_url ) ) ); ?>" class="nav-tab<?php echo ( 'accounting' == $active_page ? ' nav-tab-active' : '' ); ?>"><?php esc_html_e('Accounting', 'run-my-accounts-for-woocommerce'); ?></a>
                     <a href="<?php echo esc_url( add_query_arg( array( 'tab' => 'collective' ), admin_url( $this->admin_url ) ) ); ?>" class="nav-tab<?php echo ( 'collective' == $active_page ? ' nav-tab-active' : '' ); ?>"><?php esc_html_e('Collective Invoice', 'run-my-accounts-for-woocommerce'); ?></a>
                     <a href="<?php echo esc_url( add_query_arg( array( 'tab' => 'log' ), admin_url( $this->admin_url ) ) ); ?>" class="nav-tab<?php echo ( 'log' == $active_page ? ' nav-tab-active' : '' ); ?>"><?php esc_html_e('Log', 'run-my-accounts-for-woocommerce'); ?></a>
@@ -1072,11 +1079,11 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
 			printf(
 				'<input type="checkbox" id="%1$s" name="%3$s[%1$s]" value="1" %2$s />',
-				$id, $checked, $option_group
+				esc_attr( $id ), esc_attr( $checked ), esc_attr( $option_group )
 			);
 
 			if ( !empty( $description) )
-				echo '<p class="description">' . $description . '</p>';
+				echo '<p class="description">' . wp_kses_post( $description ) . '</p>';
 
 		}
 
@@ -1100,9 +1107,9 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 			if( 0 == count( $values ) )
 				return;
 
-			echo '<fieldset id="' . $id . '"> ';
+			echo '<fieldset id="' . esc_attr( $id ) . '"> ';
 			if( $legend ) {
-				printf( '<legend>%1$s</legend>', $legend );
+				printf( '<legend>%1$s</legend>', wp_kses_post( $legend ) );
 			}
 
 			foreach ( $values as $key => $title ) {
@@ -1112,7 +1119,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
 				printf(
 					'<input type="checkbox" id="%5$s" name="%3$s[%1$s-%5$s]" value="1" %2$s /><label for="%5$s">%4$s</label>%6$s',
-					$id, $checked, $option_group, $title, $key, $br
+					esc_attr( $id ), esc_attr( $checked ), esc_attr( $option_group ), esc_html( $title ), esc_attr( $key ), $br
 				);
 
 			}
@@ -1120,7 +1127,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 			echo '</fieldset>';
 
 			if ( !empty( $description) )
-				echo '<p class="description">' . $description . '</p>';
+				echo '<p class="description">' . wp_kses_post( $description ) . '</p>';
 
 		}
 
@@ -1145,7 +1152,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 				return;
 
 			if( $legend ) {
-				printf( '<legend>%1$s</legend>', $legend );
+				printf( '<legend>%1$s</legend>', wp_kses_post( $legend ) );
 			}
 
 			foreach ( $values as $key => $title ) {
@@ -1155,13 +1162,13 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
 				printf(
 					'<input type="radio" id="%5$s" name="%3$s[%1$s]" value="%5$s" %2$s /><label for="%5$s">%4$s</label>%6$s',
-					$id, $checked, $option_group, $title, $key, $br
+					esc_attr( $id ), esc_attr( $checked ), esc_attr( $option_group ), esc_html( $title ), esc_attr( $key ), $br
 				);
 
 			}
 
 			if ( !empty( $description) )
-				echo '<p class="description">' . $description . '</p>';
+				echo '<p class="description">' . wp_kses_post( $description ) . '</p>';
 
 		}
 
@@ -1185,9 +1192,9 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
 			$s = get_option('wc_rma_settings');
 
-			echo '<fieldset id="' . $id . '"> ';
+			echo '<fieldset id="' . esc_attr( $id ) . '"> ';
 			if( $legend ) {
-				printf( '<legend>%1$s</legend>', $legend );
+				printf( '<legend>%1$s</legend>', wp_kses_post( $legend ) );
 			}
 
 			foreach ( $available_gateways as $gateway_key => $values ) {
@@ -1196,7 +1203,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
 				printf(
 					'<input type="checkbox" id="%5$s" name="%3$s[%1$s-%5$s]" value="1" %2$s />&nbsp;%4$s<br />',
-					$id, $checked, $option_group, $values->title, $gateway_key
+					esc_attr( $id ), esc_attr( $checked ), esc_attr( $option_group ), esc_html( $values->title ), esc_attr( $gateway_key )
 				);
 
 			}
@@ -1204,7 +1211,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 			echo '</fieldset>';
 
 			if ( !empty( $description) )
-				echo '<p class="description">' . $description . '</p>';
+				echo '<p class="description">' . wp_kses_post( $description ) . '</p>';
 
 		}
 
@@ -1223,11 +1230,11 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
 			printf(
 				'<input type="text" id="%1$s" name="%3$s[%1$s]" value="%2$s" placeholder="%4$s" />',
-				$id, $value, $option_group, $placeholder
+				esc_attr( $id ), esc_attr( $value ), esc_attr( $option_group ), esc_attr( $placeholder )
 			);
 
 			if ( !empty( $description) )
-				echo '<p class="description">' . $description . '</p>';
+				echo '<p class="description">' . wp_kses_post( $description ) . '</p>';
 		}
 
 		/**
@@ -1244,21 +1251,21 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 			$class          = ( isset( $args[ 'class'] ) ) ? $args[ 'class' ] : '';
 			$style          = ( isset( $args[ 'style'] ) ) ? $args[ 'style' ] : '';
 
-			echo '<select name="' . $option_group . '[' . $id . ']"' . ( !empty( $id) ? 'id="'. $id .'"' : '' ) . ( !empty( $class) ? ' class="' . $class . '"' : '' ) . ( !empty( $style) ? ' style="' . $style . '"' : '' ) . '>';
+			echo '<select name="' . esc_attr( $option_group . '[' . $id . ']' ) . '"' . ( !empty( $id) ? ' id="'. esc_attr( $id ) .'"' : '' ) . ( !empty( $class) ? ' class="' . esc_attr( $class ) . '"' : '' ) . ( !empty( $style) ? ' style="' . esc_attr( $style ) . '"' : '' ) . '>';
 
 			foreach ( $select_options as $value => $text ) {
 				printf(
-					'<option value="%1$s" %2$s />%3$s</option>',
-					$value,
-					( isset( $options[ $id ] ) && $value == $options[ $id ] ) ? 'selected="selected"' : '',
-					$text
+					'<option value="%1$s"%2$s>%3$s</option>',
+					esc_attr( $value ),
+					( isset( $options[ $id ] ) && $value == $options[ $id ] ) ? ' selected="selected"' : '',
+					esc_html( $text )
 				);
 			}
 
 			echo '</select>';
 
 			if ( !empty( $description) )
-				echo '<p class="description">' . $description . '</p>';
+				echo '<p class="description">' . wp_kses_post( $description ) . '</p>';
 
 		}
 
@@ -1269,7 +1276,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 			$text  = ( isset( $args[ 'text' ] ) ) ? $args[ 'text' ] : '';
 			$class = ( isset( $args[ 'class' ] ) ) ? $args[ 'class' ] : '';
 
-			echo '<p class="' . $class . '">' . $text . '</p>';
+			echo '<p class="' . esc_attr( $class ) . '">' . wp_kses_post( $text ) . '</p>';
 		}
 
         /**
@@ -1287,12 +1294,12 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
             printf(
                 '<p id="%1$s">%2$s</p>',
-                $id,
-                $secret_value,
+                esc_attr( $id ),
+                esc_html( $secret_value ),
             );
 
             if ( ! empty( $description ) ) {
-                echo '<p class="description">' . $description . '</p>';
+                echo '<p class="description">' . wp_kses_post( $description ) . '</p>';
             }
         }
 
@@ -1325,9 +1332,9 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 			unset( $RMA_WC_API );
 
 			if ( ! $options )
-				echo '&nbsp;<span style="color: red; font-weight: bold">' . __('No connection. Please check your settings.', 'run-my-accounts-for-woocommerce') . '</span>';
+				echo '&nbsp;<span style="color: red; font-weight: bold">' . esc_html__('No connection. Please check your settings.', 'run-my-accounts-for-woocommerce') . '</span>';
 			else
-				echo '&nbsp;<span style="color: green">' . __('Connection successful.', 'run-my-accounts-for-woocommerce') . '</span>';
+				echo '&nbsp;<span style="color: green">' . esc_html__('Connection successful.', 'run-my-accounts-for-woocommerce') . '</span>';
 
 		}
 
