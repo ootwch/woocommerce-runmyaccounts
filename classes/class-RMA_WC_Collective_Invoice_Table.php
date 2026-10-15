@@ -477,16 +477,32 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 				// $this->show_action_form();
 			}
-			// Get the active tab from the $_GET param
-			$default_tab = null;
-			$tab         = isset( $_REQUEST['tab'] ) ? $_GET['_REQUEST'] : $default_tab;
 
+			$language_counts = $this->invoice_language_counts();
+			if ( ! empty( $language_counts ) ) {
+				$parts = array();
+				foreach ( $language_counts as $lang => $count ) {
+					$parts[] = strtoupper( $lang ) . ' ' . (int) $count;
+				}
+				printf(
+					'<div id="invoice-language-counts"><strong>%s</strong> %s</div>',
+					esc_html( 'confirm' === $this->execution_mode ? __( 'Invoice languages (selected):', 'rma-wc' ) : __( 'Invoice languages on this page:', 'rma-wc' ) ),
+					esc_html( implode( ' | ', $parts ) )
+				);
+			}
 			$readonly = 'plan' === $this->execution_mode ? '' : 'readonly';
 
 			$invoice_title_en       = get_option( 'rma_invoice_title_en', __( 'SailCom Abrechnung', 'woocommerce-sailcom' ) );
 			$invoice_description_en = get_option( 'rma_invoice_description_en', '' );
 			$invoice_footer_en      = get_option( 'rma_invoice_footer_en', '' );
 
+			/*
+			 * Only the English texts are saved (see prepare_items()); the DE and FR fields are not stored.
+			 * RMA_WC_Order_Language::collective_invoice_option() would already pick per-language texts.
+			 * Enable DE/FR only together with handling text changes across languages: an edited English
+			 * text must not leave stale German/French versions unnoticed (e.g. stored text templates with
+			 * one name and a snippet per language, and a visible "older than English" state).
+			 */
 			?>
 			<nav class="nav-tab-wrapper">
 				<a href="#" data-language="en" class="nav-tab nav-tab-en nav-tab-active">English</a>
@@ -502,10 +518,10 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			<input <?php echo esc_attr( $readonly ); ?> type="text" name = "invoice_title_en" value="<?php echo esc_attr( $invoice_title_en ); ?>"><br>
 
 			<label>EN Header Text</label><br>
-			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice_description_en" cols="80" rows="3"><?php echo esc_attr( $invoice_description_en ); ?></textarea><br>
+			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice_description_en" cols="80" rows="3"><?php echo esc_textarea( $invoice_description_en ); ?></textarea><br>
 
 			<label>EN Footer Text</label><br>
-			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice_footer_en" cols="80" rows="10"><?php echo esc_attr( $invoice_footer_en ); ?></textarea><br>
+			<textarea <?php echo esc_attr( $readonly ); ?> id="" name="invoice_footer_en" cols="80" rows="10"><?php echo esc_textarea( $invoice_footer_en ); ?></textarea><br>
 			</div>
 
 			<div hidden class="nav-tab-de">
@@ -550,7 +566,8 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			</div>
 			<?php
 
-			echo '<input type="hidden" name="page" value="' . esc_attr( $_REQUEST['page'] ) . '" />';
+			$page = isset( $_REQUEST['page'] ) ? sanitize_key( wp_unslash( $_REQUEST['page'] ) ) : 'invoice-dashboard';
+			echo '<input type="hidden" name="page" value="' . esc_attr( $page ) . '" />';
 
 			/**
 			 * Third party filter
@@ -603,9 +620,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 		}
 		if ( 'bottom' === $which ) {
-			// The code that goes after the table is there.
-			echo "Hi, I'm after the table";
-
 			if ( 'done' === $this->execution_mode ) {
 				// Show the log.
 				echo '<div>';
@@ -616,13 +630,36 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		}
 	}
 
+	/**
+	 * Invoices per language: the language of each group's first order, as used when the invoice is created.
+	 *
+	 * In confirm mode only the selected invoices count; otherwise all groups on the current page.
+	 *
+	 * @return array<string,int> Language code => number of invoices, sorted by code.
+	 */
+	private function invoice_language_counts(): array {
+		$counts = array();
+		foreach ( $this->current_page_groups as $group ) {
+			if ( 'confirm' === $this->execution_mode && ! isset( $this->items[ $group['invoice_id'] ?? '' ] ) ) {
+				continue;
+			}
+			$first_order_id = (int) ( $group['order_ids'][0] ?? 0 );
+			$order          = $first_order_id ? wc_get_order( $first_order_id ) : false;
+			$lang           = $order instanceof WC_Order ? RMA_WC_Order_Language::get_order_language( $order ) : 'en';
+			$counts[ $lang ] = ( $counts[ $lang ] ?? 0 ) + 1;
+		}
+		ksort( $counts );
+
+		return $counts;
+	}
+
 	protected function get_views() {
 
 		$view = ! empty( $_REQUEST['view'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['view'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
 
 		$status_links = array(
-			'all'    => '<a class="' . ( 'all' === $view ? 'current' : '' ) . '" href="' . add_query_arg( 'view', 'all' ) . '">' . esc_html__( 'All', 'wc-rma' ) . '(' . $this->all_items_count . ')</a>',
-			'errors' => '<a class="' . ( 'errors' === $view ? 'current' : '' ) . '" href="' . add_query_arg( 'view', 'errors' ) . '">' . esc_html__( 'Errors', 'wc-rma' ) . '(' . count( $this->errors ) . ')</a>',
+			'all'    => '<a class="' . ( 'all' === $view ? 'current' : '' ) . '" href="' . esc_url( add_query_arg( 'view', 'all' ) ) . '">' . esc_html__( 'All', 'wc-rma' ) . '(' . (int) $this->all_items_count . ')</a>',
+			'errors' => '<a class="' . ( 'errors' === $view ? 'current' : '' ) . '" href="' . esc_url( add_query_arg( 'view', 'errors' ) ) . '">' . esc_html__( 'Errors', 'wc-rma' ) . '(' . count( $this->errors ) . ')</a>',
 		);
 		return $status_links;
 	}
@@ -675,13 +712,10 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		// Saved texts and the user filter only change through a valid dashboard POST.
 		$can_save = $this->is_valid_dashboard_post() && current_user_can( 'manage_woocommerce' );
 
-		$rma_options = array( 'invoice_title_en', 'invoice_description_en', 'invoice_footer_en' );
-		foreach ( $rma_options as $o ) {
+		// English only; see the note above the text tabs in extra_tablenav() before adding DE/FR.
+		foreach ( array( 'invoice_title_en', 'invoice_description_en', 'invoice_footer_en' ) as $o ) {
 			if ( $can_save && isset( $_POST[ $o ] ) ) {
-				$$o = sanitize_text_field( wp_unslash( $_POST[ $o ] ) );
-				update_option( 'rma_' . $o, $$o );
-			} else {
-				$$o = get_option( 'rma_' . $o, '' );
+				update_option( 'rma_' . $o, sanitize_text_field( wp_unslash( $_POST[ $o ] ) ) );
 			}
 		}
 

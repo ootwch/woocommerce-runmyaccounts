@@ -278,6 +278,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
                     array(
                         'option_group' => $this->option_group_general,
                         'id'           => $id,
+                        'type'         => 'password',
                         'value'        => isset( $this->options_general[ $id ] ) ? $this->options_general[ $id ] : '',
 				)
 			);
@@ -339,6 +340,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
                     array(
                         'option_group' => $this->option_group_general,
                         'id'           => $id,
+                        'type'         => 'password',
                         'value'        => isset( $this->options_general[ $id ] ) ? $this->options_general[ $id ] : '',
 				)
 			);
@@ -1227,10 +1229,14 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 			$value        = ( isset( $args['value'] ) ) ? $args['value'] : '';
 			$placeholder  = ( isset( $args['placeholder'] ) ) ? $args['placeholder'] : '';
 			$description  = ( isset( $args['description'] ) ) ? $args['description'] : '';
+			$is_password  = isset( $args['type'] ) && 'password' === $args['type'];
 
 			printf(
-				'<input type="text" id="%1$s" name="%3$s[%1$s]" value="%2$s" placeholder="%4$s" />',
-				esc_attr( $id ), esc_attr( $value ), esc_attr( $option_group ), esc_attr( $placeholder )
+				'<input type="%5$s" id="%1$s" name="%3$s[%1$s]" value="%2$s" placeholder="%4$s"%6$s />',
+				esc_attr( $id ), esc_attr( $value ), esc_attr( $option_group ), esc_attr( $placeholder ),
+				$is_password ? 'password' : 'text',
+				// Keeps browsers from filling in the saved WordPress login password.
+				$is_password ? ' autocomplete="new-password"' : ''
 			);
 
 			if ( !empty( $description) )

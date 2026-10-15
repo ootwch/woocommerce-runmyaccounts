@@ -265,7 +265,8 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
                 case 'rma_invoice' :
 
 	                $order = wc_get_order( $post->ID );
-	                echo $order->get_meta( '_rma_invoice', true );
+	                echo $order ? esc_html( $order->get_meta( '_rma_invoice', true ) ) : '';
+	                break;
 
                 default:
             }
@@ -286,7 +287,8 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
 		    switch ( $column ) {
 			    case 'rma_invoice' :
 
-				    echo esc_attr( $wc_order_obj->get_meta( '_rma_invoice', true ) );
+				    echo esc_html( $wc_order_obj->get_meta( '_rma_invoice', true ) );
+				    break;
 
 			    default:
 		    }

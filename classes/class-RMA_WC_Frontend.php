@@ -170,7 +170,7 @@ if ( ! class_exists('RMA_WC_Frontend' ) ) {
         public function add_value_to_user_table_row( $val, $column_name, $user_id ): string {
             switch ( $column_name ) {
                 case 'rma_customer_id' :
-                    return get_the_author_meta( 'rma_customer', $user_id );
+                    return esc_html( (string) get_the_author_meta( 'rma_customer', $user_id ) );
                 default:
             }
             return $val;

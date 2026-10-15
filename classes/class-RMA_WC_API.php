@@ -330,6 +330,48 @@ if ( !class_exists('RMA_WC_API') ) {
 		}
 
 		/**
+		 * Customer-facing label for a Run my Accounts invoice status.
+		 *
+		 * @param mixed $status Status code from Run my Accounts, for example "OVERDUE".
+		 * @return string Translated label, or the code itself when it is unknown.
+		 */
+		public static function invoice_status_label( $status ) {
+			$code   = strtoupper( trim( is_scalar( $status ) ? (string) $status : '' ) );
+			$labels = array(
+				'OPEN'    => __( 'Open', 'rma-wc' ),
+				'OVERDUE' => __( 'Overdue', 'rma-wc' ),
+				'PAID'    => __( 'Paid', 'rma-wc' ),
+			);
+
+			return $labels[ $code ] ?? $code;
+		}
+
+		/**
+		 * Log why a Run my Accounts response could not be parsed as XML.
+		 *
+		 * Never echo here: the caller may be rendering a page, an AJAX answer or a PDF download.
+		 *
+		 * @param string $source Calling method, used as the log section.
+		 * @return void
+		 */
+		private static function log_xml_parse_errors( string $source ): void {
+			$messages = array();
+			foreach ( libxml_get_errors() as $error ) {
+				$messages[] = trim( $error->message );
+			}
+			libxml_clear_errors();
+
+			$log_values = array(
+				'status'     => 'error',
+				'section_id' => '',
+				'section'    => $source,
+				'mode'       => self::rma_mode(),
+				'message'    => 'Run my Accounts response was not valid XML: ' . implode( '; ', array_slice( $messages, 0, 3 ) ),
+			);
+			self::write_log( $log_values );
+		}
+
+		/**
 		 * XML element whose value is added as text, so "&" and "<" are escaped.
 		 *
 		 * DOMDocument::createElement( $name, $value ) does not escape "&": the value
@@ -632,10 +674,7 @@ if ( !class_exists('RMA_WC_API') ) {
                 $xml  = simplexml_load_string( $body );
 
                 if ( ! $xml ) {
-                    // ToDO: Add this information to error log
-                    foreach ( libxml_get_errors() as $error ) {
-                        echo "\t", $error->message;
-                    }
+                    self::log_xml_parse_errors( __FUNCTION__ );
 
                     return false;
 
@@ -730,10 +769,7 @@ if ( !class_exists('RMA_WC_API') ) {
 				$xml  = simplexml_load_string( $body );
 
 				if ( !$xml ) {
-					// ToDO: Add this information to error log
-					foreach( libxml_get_errors() as $error ) {
-						echo "\t", $error->message;
-					}
+					self::log_xml_parse_errors( __FUNCTION__ );
 
 					return false;
 
@@ -843,10 +879,7 @@ if ( !class_exists('RMA_WC_API') ) {
                 $xml  = simplexml_load_string( $body );
 
                 if ( ! $xml ) {
-                    // ToDO: Add this information to error log
-                    foreach ( libxml_get_errors() as $error ) {
-                        echo "\t", $error->message;
-                    }
+                    self::log_xml_parse_errors( __FUNCTION__ );
 
                     return false;
 
@@ -933,10 +966,7 @@ if ( !class_exists('RMA_WC_API') ) {
                 $xml  = simplexml_load_string( $body );
 
                 if ( false === $xml ) {
-                    // ToDO: Add this information to error log
-                    foreach ( libxml_get_errors() as $error ) {
-                        echo "\t", $error->message;
-                    }
+                    self::log_xml_parse_errors( __FUNCTION__ );
 
                     return false;
 
@@ -1013,10 +1043,7 @@ if ( !class_exists('RMA_WC_API') ) {
                 $xml  = simplexml_load_string( $body );
 
                 if ( false === $xml ) {
-                    // ToDO: Add this information to error log
-                    foreach ( libxml_get_errors() as $error ) {
-                        echo "\t", $error->message;
-                    }
+                    self::log_xml_parse_errors( __FUNCTION__ );
 
                     return false;
 
@@ -1333,10 +1360,7 @@ if ( !class_exists('RMA_WC_API') ) {
 				$xml  = simplexml_load_string( $body );
 
 				if ( !$xml ) {
-					// ToDO: Add this information to error log
-					foreach( libxml_get_errors() as $error ) {
-						echo "\t", esc_html( $error->message );
-					}
+					self::log_xml_parse_errors( __FUNCTION__ );
 
 					return false;
 
@@ -1413,10 +1437,7 @@ if ( !class_exists('RMA_WC_API') ) {
 				$xml  = simplexml_load_string( $body );
 
 				if ( ! $xml ) {
-					// ToDO: Add this information to error log
-					foreach ( libxml_get_errors() as $error ) {
-						echo "\t", $error->message;
-					}
+					self::log_xml_parse_errors( __FUNCTION__ );
 
 					return false;
 
@@ -2170,7 +2191,7 @@ if ( !class_exists('RMA_WC_API') ) {
 				$invoice_type   = $collective_invoice ? esc_html_x( 'Collective invoice', 'Order Note', 'run-my-accounts-for-woocommerce') : esc_html_x( 'Invoice', 'Order Note', 'run-my-accounts-for-woocommerce') ;
 
 				$invoice_number = $data[ 'invoice' ][ 'invnumber' ];
-				$message        = sprintf( esc_html_x( '%1$s %2$s created', 'Log', 'run-my-accounts-for-woocommerce'), $collective_invoice, $invoice_number);
+				$message        = sprintf( esc_html_x( '%1$s %2$s created', 'Log', 'run-my-accounts-for-woocommerce'), $invoice_type, $invoice_number);
 
 				// add order note to each order
 				foreach ( $order_ids as $order_id ) {
@@ -2199,7 +2220,7 @@ if ( !class_exists('RMA_WC_API') ) {
 				foreach ( $order_ids as $order_id ) {
 
 					$order          = wc_get_order(  $order_id );
-					$note           = sprintf( esc_html_x( 'Invoice creation failed: %s', 'Order Note', 'run-my-accounts-for-woocommerce'), __($message, 'run-my-accounts-for-woocommerce'));
+					$note           = sprintf( esc_html_x( 'Invoice creation failed: %s', 'Order Note', 'run-my-accounts-for-woocommerce'), $message );
 					$order->add_order_note( $note );
 
 					unset( $order );

@@ -88,7 +88,7 @@ $invoice_columns = array(
 								<time datetime="<?php echo esc_attr( $duedate ); ?>"><?php echo empty($duedate) ? '-' : esc_html( wp_date( get_option( 'date_format' ), strtotime( $duedate ) ) ); ?></time>
 
 							<?php elseif ( 'status' === $column_id ) : ?>
-								<?php echo esc_html( __( $invoice['status'], 'wc-rma' ) ); ?>
+								<?php echo esc_html( RMA_WC_API::invoice_status_label( $invoice['status'] ?? '' ) ); ?>
 
 							<?php elseif ( 'amount' === $column_id ) : ?>
 								<?php

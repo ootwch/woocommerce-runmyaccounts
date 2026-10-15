@@ -28,6 +28,16 @@ function apply_filters( $hook, $value ) {
 	return array_key_exists( $hook, $GLOBALS['rma_guard_filters'] ) ? $GLOBALS['rma_guard_filters'][ $hook ] : $value;
 }
 
+/**
+ * Untranslated __().
+ *
+ * @param string $text Text.
+ * @return string
+ */
+function __( $text ) {
+	return $text;
+}
+
 require_once dirname( __DIR__ ) . '/classes/class-RMA_WC_API.php';
 
 /**
@@ -91,6 +101,10 @@ rma_guard_same( '', RMA_WC_API::normalize_customer_number( '' ), 'rejects an emp
 rma_guard_same( '', RMA_WC_API::normalize_customer_number( array( 'N1' ) ), 'rejects a non-scalar customer number' );
 rma_guard_same( RMA_WC_API::customer_invoices_transient_key( 'N12345' ), RMA_WC_API::customer_invoices_transient_key( ' N12345 ' ), 'cache key ignores surrounding spaces' );
 rma_guard_same( 'rma_wc_invoices_N12345', RMA_WC_API::customer_invoices_transient_key( 'N12345' ), 'cache key has the rma_wc_ prefix that uninstall.php removes' );
+
+rma_guard_same( 'Overdue', RMA_WC_API::invoice_status_label( 'OVERDUE' ), 'overdue label' );
+rma_guard_same( 'Paid', RMA_WC_API::invoice_status_label( ' paid ' ), 'status label ignores case and spaces' );
+rma_guard_same( 'PARTIAL', RMA_WC_API::invoice_status_label( 'partial' ), 'unknown status shows its code' );
 
 rma_guard_same( '2026-02-28', RMA_WC_API::normalize_api_date( '2026-02-28' ), 'valid API date' );
 rma_guard_same( '', RMA_WC_API::normalize_api_date( '2026-02-30' ), 'rejects an impossible date' );
