@@ -149,47 +149,50 @@ class RMA_WC_Invoicing_Column {
 				/* translators: %s: date and time the invoice status changed */
 				$state['title'] = sprintf( __( 'Status changed: %s', 'rma-wc' ), wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $changed_at ) );
 			}
-
-			return $state;
+		} else {
+			$route = RMA_WC_API::order_invoice_route( $order );
+			if ( RMA_WC_API::INVOICE_ROUTE_RMA !== $route ) {
+				$state = array(
+					'key'    => 'route-' . $route,
+					'label'  => RMA_WC_API::invoice_route_label( $route, $order ),
+					'detail' => '',
+					'title'  => '',
+				);
+			} else {
+				$error = (string) $order->get_meta( RMA_WC_API::INVOICE_ERROR_META, true );
+				if ( '' !== $error ) {
+					$failed_at = strtotime( (string) $order->get_meta( RMA_WC_API::INVOICE_ERROR_AT_META, true ) );
+					$state     = array(
+						'key'    => 'failed',
+						'label'  => __( 'RMA: invoice failed', 'rma-wc' ),
+						'detail' => false !== $failed_at && $failed_at > 0 ? wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $failed_at ) : '',
+						'title'  => $error,
+					);
+				} elseif ( $order->has_status( self::BILLABLE_STATUS ) ) {
+					$state = array(
+						'key'    => 'not-sent',
+						'label'  => __( 'RMA: not sent', 'rma-wc' ),
+						'detail' => '',
+						'title'  => '',
+					);
+				} else {
+					$state = array(
+						'key'    => 'none',
+						'label'  => '',
+						'detail' => '',
+						'title'  => '',
+					);
+				}
+			}
 		}
 
-		$route = RMA_WC_API::order_invoice_route( $order );
-		if ( RMA_WC_API::INVOICE_ROUTE_RMA !== $route ) {
-			return array(
-				'key'    => 'route-' . $route,
-				'label'  => RMA_WC_API::invoice_route_label( $route, $order ),
-				'detail' => '',
-				'title'  => '',
-			);
-		}
-
-		$error = (string) $order->get_meta( RMA_WC_API::INVOICE_ERROR_META, true );
-		if ( '' !== $error ) {
-			$failed_at = strtotime( (string) $order->get_meta( RMA_WC_API::INVOICE_ERROR_AT_META, true ) );
-
-			return array(
-				'key'    => 'failed',
-				'label'  => __( 'RMA: invoice failed', 'rma-wc' ),
-				'detail' => false !== $failed_at && $failed_at > 0 ? wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $failed_at ) : '',
-				'title'  => $error,
-			);
-		}
-
-		if ( $order->has_status( self::BILLABLE_STATUS ) ) {
-			return array(
-				'key'    => 'not-sent',
-				'label'  => __( 'RMA: not sent', 'rma-wc' ),
-				'detail' => '',
-				'title'  => '',
-			);
-		}
-
-		return array(
-			'key'    => 'none',
-			'label'  => '',
-			'detail' => '',
-			'title'  => '',
-		);
+		/**
+		 * Refine the invoicing state shown in the orders list (for example partner pending vs handed over).
+		 *
+		 * @param array    $state State with keys key, label, detail, title.
+		 * @param WC_Order $order Order.
+		 */
+		return (array) apply_filters( 'rma_wc_invoicing_order_state', $state, $order );
 	}
 
 	/**
@@ -216,7 +219,12 @@ class RMA_WC_Invoicing_Column {
 			}
 		}
 
-		return $options;
+		/**
+		 * Filter choices for the orders-list "Invoicing" filter.
+		 *
+		 * @param array<string,string> $options Value => label.
+		 */
+		return (array) apply_filters( 'rma_wc_invoicing_filter_options', $options );
 	}
 
 	/**
@@ -329,10 +337,22 @@ class RMA_WC_Invoicing_Column {
 				$sql      = "{$no_invoice} AND {$route} = %s";
 				break;
 			default:
-				return '';
+				$params = array();
+				$sql    = '';
+				break;
 		}
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-		return empty( $params ) ? $sql : $wpdb->prepare( $sql, $params );
+		$sql = ( '' === $sql || empty( $params ) ) ? $sql : $wpdb->prepare( $sql, $params );
+
+		/**
+		 * SQL condition for an invoicing filter value (already prepared where needed).
+		 *
+		 * @param string $sql          Condition, or '' to skip.
+		 * @param string $filter       Filter value.
+		 * @param string $orders_table HPOS orders table.
+		 * @param string $meta_table   HPOS order meta table.
+		 */
+		return (string) apply_filters( 'rma_wc_invoicing_filter_condition', $sql, $filter, $orders_table, $meta_table );
 	}
 }
