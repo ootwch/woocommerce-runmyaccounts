@@ -614,9 +614,10 @@ if ( !class_exists('RMA_WC_API') ) {
 		/**
 		 * Read customer list from RMA
 		 *
+		 * @param int $timeout Request timeout in seconds; 0 keeps the default.
 		 * @return mixed
 		 */
-		public function get_customers() {
+		public function get_customers( $timeout = 0 ) {
 
 			if( !RMA_MANDANT || !RMA_APIKEY ) {
 
@@ -634,9 +635,10 @@ if ( !class_exists('RMA_WC_API') ) {
 			}
 
 			$url       = self::get_caller_url() . RMA_MANDANT . '/customers';
+            $http_args = $timeout > 0 ? array( 'timeout' => (int) $timeout ) : array();
             $response  = wp_remote_get(
                 $url,
-                self::get_rma_http_args( self::get_authenticated_http_args() )
+                self::get_rma_http_args( self::get_authenticated_http_args( $http_args ) )
             );
 
 			// Check response code
@@ -1302,11 +1304,12 @@ if ( !class_exists('RMA_WC_API') ) {
 		/**
 		 * Read parts list from RMA
 		 *
+		 * @param int $timeout Request timeout in seconds; 0 keeps the default.
 		 * @return mixed
 		 *
 		 * @since 1.5.0
 		 */
-		public function get_parts() {
+		public function get_parts( $timeout = 0 ) {
 
 			if( !RMA_MANDANT || !RMA_APIKEY ) {
 
@@ -1324,10 +1327,11 @@ if ( !class_exists('RMA_WC_API') ) {
 			}
 
 			$url       = self::get_caller_url() . RMA_MANDANT . '/parts';
+            $http_args = $timeout > 0 ? array( 'timeout' => (int) $timeout ) : array();
 
             $response  = wp_remote_get(
                 $url,
-                self::get_rma_http_args( self::get_authenticated_http_args() )
+                self::get_rma_http_args( self::get_authenticated_http_args( $http_args ) )
             );
 
 			// Check response code
@@ -1336,9 +1340,11 @@ if ( !class_exists('RMA_WC_API') ) {
 				$message = esc_html__( 'Response Code', 'run-my-accounts-for-woocommerce') . ' '. wp_remote_retrieve_response_code( $response );
 				$message .= ' '. wp_remote_retrieve_response_message( $response );
 
-				$response = (array) $response[ 'http_response' ];
-
-				$message = self::append_response_url_to_message( $message, $response );
+				if ( is_wp_error( $response ) ) {
+					$message .= ' ' . sanitize_text_field( $response->get_error_message() );
+				} else {
+					$message = self::append_response_url_to_message( $message, $response );
+				}
 
 				$log_values = array(
 					'status' => 'error',

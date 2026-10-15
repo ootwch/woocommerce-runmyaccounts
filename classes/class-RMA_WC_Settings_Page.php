@@ -38,6 +38,19 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 		private $option_page_log;
 		private $rma_log_count;
 
+		private const LIST_CACHE_TTL         = HOUR_IN_SECONDS;
+		private const LIST_FAILURE_CACHE_TTL = 5 * MINUTE_IN_SECONDS;
+		private const LIST_REQUEST_TIMEOUT   = 15;
+		private const LIST_TYPES             = array( 'customers', 'parts' );
+		private const REFRESH_LISTS_ACTION   = 'rma_wc_refresh_lists';
+
+		/**
+		 * Lists already loaded in this request, by type.
+		 *
+		 * @var array<string,array>
+		 */
+		private static $rma_lists = array();
+
 		public function __construct() {
 
 			$this->admin_url                       = 'admin.php?page=rma-wc';
@@ -57,6 +70,98 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
 			add_action( 'admin_menu', array( $this, 'add_plugin_page' ) );
 
+			add_action( 'admin_init', array( $this, 'maybe_refresh_rma_lists' ) );
+			// Mode or credentials may have changed.
+			add_action( 'add_option_' . $this->option_group_general, array( __CLASS__, 'clear_rma_list_cache' ) );
+			add_action( 'update_option_' . $this->option_group_general, array( __CLASS__, 'clear_rma_list_cache' ) );
+
+		}
+
+		/**
+		 * Customer or parts list from Run my Accounts, cached so the settings page does not call the API on every load.
+		 *
+		 * Failures are cached briefly too, so an outage does not make every page load wait for the timeout.
+		 *
+		 * @param string $type 'customers' or 'parts'.
+		 * @return array{ok: bool, items: array, checked_at: int, context: string}
+		 */
+		private static function rma_list( string $type ): array {
+			if ( isset( self::$rma_lists[ $type ] ) ) {
+				return self::$rma_lists[ $type ];
+			}
+
+			$api     = new RMA_WC_API();
+			$context = md5( RMA_WC_API::rma_mode() . '|' . RMA_MANDANT );
+			$cached  = get_transient( 'rma_wc_settings_list_' . $type );
+			if ( is_array( $cached ) && ( $cached['context'] ?? '' ) === $context ) {
+				self::$rma_lists[ $type ] = $cached;
+
+				return $cached;
+			}
+
+			$items = 'customers' === $type ? $api->get_customers( self::LIST_REQUEST_TIMEOUT ) : $api->get_parts( self::LIST_REQUEST_TIMEOUT );
+			$entry = array(
+				'ok'         => is_array( $items ) && ! empty( $items ),
+				'items'      => is_array( $items ) ? $items : array(),
+				'checked_at' => time(),
+				'context'    => $context,
+			);
+			set_transient( 'rma_wc_settings_list_' . $type, $entry, $entry['ok'] ? self::LIST_CACHE_TTL : self::LIST_FAILURE_CACHE_TTL );
+			self::$rma_lists[ $type ] = $entry;
+
+			return $entry;
+		}
+
+		/**
+		 * Forget the cached customer and parts lists.
+		 *
+		 * @return void
+		 */
+		public static function clear_rma_list_cache() {
+			foreach ( self::LIST_TYPES as $type ) {
+				delete_transient( 'rma_wc_settings_list_' . $type );
+			}
+			self::$rma_lists = array();
+		}
+
+		/**
+		 * "Check again" link on the settings page: reload the lists from Run my Accounts.
+		 *
+		 * @return void
+		 */
+		public function maybe_refresh_rma_lists() {
+			if ( ! isset( $_GET['rma-refresh-lists'], $_GET['page'] ) || 'rma-wc' !== $_GET['page'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+				return;
+			}
+			if ( ! current_user_can( 'manage_options' ) ) {
+				wp_die( esc_html__( 'Sorry, you are not allowed to access this page.' ), '', array( 'response' => 403 ) );
+			}
+			check_admin_referer( self::REFRESH_LISTS_ACTION );
+
+			self::clear_rma_list_cache();
+			wp_safe_redirect( admin_url( $this->admin_url ) );
+			exit;
+		}
+
+		/**
+		 * Select options for a cached list, keeping the saved value selectable when it is missing from the list
+		 * (for example while Run my Accounts is unreachable), so saving the form does not clear it.
+		 *
+		 * @param array  $list  Entry from rma_list().
+		 * @param string $id    Settings field ID.
+		 * @return array
+		 */
+		private function rma_list_select_options( array $list, string $id ): array {
+			$options = $list['ok']
+				? array( '' => __( 'Select...', 'run-my-accounts-for-woocommerce' ) ) + $list['items']
+				: array( '' => __( 'Error while connecting to RMA. Please check your settings.', 'run-my-accounts-for-woocommerce' ) );
+
+			$saved = isset( $this->options_general[ $id ] ) ? (string) $this->options_general[ $id ] : '';
+			if ( '' !== $saved && ! array_key_exists( $saved, $options ) ) {
+				$options[ $saved ] = $saved;
+			}
+
+			return $options;
 		}
 
 		public function admin_enqueue( $hook ) {
@@ -1331,16 +1436,21 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 			// create select
 			self::option_select_cb( $select_args );
 
-			// output connection status
-			$RMA_WC_API = new RMA_WC_API();
-			// Retrieve customers to check connection
-			$options = $RMA_WC_API->get_customers();
-			unset( $RMA_WC_API );
+			// Connection status: the (cached) customer list loaded.
+			$list = self::rma_list( 'customers' );
 
-			if ( ! $options )
+			if ( ! $list['ok'] )
 				echo '&nbsp;<span style="color: red; font-weight: bold">' . esc_html__('No connection. Please check your settings.', 'run-my-accounts-for-woocommerce') . '</span>';
 			else
 				echo '&nbsp;<span style="color: green">' . esc_html__('Connection successful.', 'run-my-accounts-for-woocommerce') . '</span>';
+
+			printf(
+				' <span class="description">%1$s</span> <a href="%2$s">%3$s</a>',
+				/* translators: %s: time span, e.g. "5 mins" */
+				esc_html( sprintf( __( 'Checked %s ago.', 'rma-wc' ), human_time_diff( (int) $list['checked_at'] ) ) ),
+				esc_url( wp_nonce_url( add_query_arg( 'rma-refresh-lists', '1', admin_url( $this->admin_url ) ), self::REFRESH_LISTS_ACTION ) ),
+				esc_html__( 'Check again', 'rma-wc' )
+			);
 
 		}
 
@@ -1353,21 +1463,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 			$option_group = ( isset( $args['option_group'] ) ) ? $args['option_group'] : '';
 			$id           = ( isset( $args['id'] ) ) ? $args['id'] : '';
 
-			$RMA_WC_API = new RMA_WC_API();
-			$options = $RMA_WC_API->get_customers();
-
-			if ( !empty( $RMA_WC_API ) ) unset( $RMA_WC_API );
-
-			if( !isset( $options ) || !$options ) {
-
-				$options = array('' => __( 'Error while connecting to RMA. Please check your settings.', 'run-my-accounts-for-woocommerce' ) );
-
-			}
-			else {
-
-				$options = array('' => __( 'Select...', 'run-my-accounts-for-woocommerce' ) ) + $options;
-
-			}
+			$options = $this->rma_list_select_options( self::rma_list( 'customers' ), $id );
 
 			$select_args  = array (
 				'option_group'   => $option_group,
@@ -1394,25 +1490,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 			$id           = ( isset( $args['id'] ) ) ? $args['id'] : '';
 			$description  = ( isset( $args['description'] ) ) ? $args['description'] : '';
 
-			if ( !isset( $parts ) || empty( $parts ) ) {
-
-				$rma_api = new RMA_WC_API();
-				$parts   = $rma_api->get_parts();
-
-				if ( !empty( $RMA_WC_API ) ) unset( $RMA_WC_API );
-
-			}
-
-			if( !isset( $parts ) || !$parts ) {
-
-				$options = array('' => __( 'Error while connecting to RMA. Please check your settings.', 'run-my-accounts-for-woocommerce' ) );
-
-			}
-			else {
-
-				$options = array('' => __( 'Select...', 'run-my-accounts-for-woocommerce' ) ) + $parts;
-
-			}
+			$options = $this->rma_list_select_options( self::rma_list( 'parts' ), $id );
 
 			$select_args  = array (
 				'option_group'   => $option_group,
