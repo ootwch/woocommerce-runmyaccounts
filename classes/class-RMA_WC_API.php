@@ -19,6 +19,13 @@ if ( !class_exists('RMA_WC_API') ) {
 		public static $last_invoice_error_message = '';
 
 		/**
+		 * Why the last get_invoice_status() call returned false.
+		 *
+		 * @var string
+		 */
+		public static $last_invoice_status_error = '';
+
+		/**
 		 * Return last invoice API error message.
 		 *
 		 * @return string
@@ -252,6 +259,124 @@ if ( !class_exists('RMA_WC_API') ) {
 
 			return $message;
 		}
+
+		/**
+		 * Invoice number safe to put in a URL path and an API path segment.
+		 *
+		 * Keeps characters that sanitize_key() would remove (for example "."), and
+		 * rejects path separators so the value cannot change which request is made.
+		 *
+		 * @param mixed $invoice_number Raw invoice number.
+		 * @return string Uppercase number, or an empty string when the value is unusable.
+		 */
+		public static function normalize_invoice_number( $invoice_number ) {
+			$value = trim( rawurldecode( (string) $invoice_number ) );
+			if ( '' === $value || strlen( $value ) > 128 ) {
+				return '';
+			}
+			if ( false !== strpos( $value, '..' ) ) {
+				return '';
+			}
+			if ( preg_match( '/[\x00-\x1F\x7F\/\\\\?#"]/', $value ) ) {
+				return '';
+			}
+
+			return strtoupper( $value );
+		}
+
+		/**
+		 * Status to store for an order, or null when this order must not be updated.
+		 *
+		 * An empty stored invoice, or a stored invoice that is not the one just
+		 * fetched, must not be overwritten. Otherwise a broad order query would
+		 * stamp every invoiced order with the current invoice's status.
+		 *
+		 * @param mixed $stored_invoice_number Value of `_rma_invoice`.
+		 * @param array $statuses              Map of invoice number => status.
+		 * @return string|null
+		 */
+		public static function matching_invoice_status( $stored_invoice_number, array $statuses ) {
+			if ( ! is_scalar( $stored_invoice_number ) ) {
+				return null;
+			}
+
+			$stored_invoice_number = trim( (string) $stored_invoice_number );
+			if ( '' === $stored_invoice_number || ! array_key_exists( $stored_invoice_number, $statuses ) ) {
+				return null;
+			}
+
+			$status = $statuses[ $stored_invoice_number ];
+			if ( ! is_scalar( $status ) ) {
+				return null;
+			}
+
+			$status = trim( (string) $status );
+			if ( '' === $status ) {
+				return null;
+			}
+
+			return $status;
+		}
+
+		/**
+		 * Whether the response media type is a PDF, ignoring parameters such as charset.
+		 *
+		 * @param mixed $content_type Header value from wp_remote_retrieve_header().
+		 * @return bool
+		 */
+		public static function is_pdf_content_type( $content_type ) {
+			if ( is_array( $content_type ) ) {
+				$content_type = end( $content_type );
+			}
+			if ( ! is_string( $content_type ) ) {
+				return false;
+			}
+
+			$media_type = strtolower( trim( explode( ';', $content_type, 2 )[0] ) );
+
+			return 'application/pdf' === $media_type || 'application/octet-stream' === $media_type;
+		}
+
+		/**
+		 * Whether the body looks like a PDF. Error text and empty bodies do not.
+		 *
+		 * @param mixed $body Response body.
+		 * @return bool
+		 */
+		public static function body_is_pdf( $body ) {
+			if ( ! is_string( $body ) || strlen( $body ) < 5 ) {
+				return false;
+			}
+
+			return false !== strpos( substr( $body, 0, 1024 ), '%PDF-' );
+		}
+
+		/**
+		 * Nonce action for an invoice PDF download.
+		 *
+		 * @param string $invoice_number Normalized invoice number.
+		 * @return string
+		 */
+		public static function invoice_pdf_nonce_action( $invoice_number ) {
+			return 'download-pdf-nonce-' . $invoice_number;
+		}
+
+		/**
+		 * Download URL for an invoice PDF, signed for the current user and session.
+		 *
+		 * The nonce expires after 12–24 hours and when the user logs out.
+		 *
+		 * @param string $invoice_number Normalized invoice number.
+		 * @return string Unescaped URL.
+		 */
+		public static function invoice_pdf_download_url( $invoice_number ) {
+			return add_query_arg(
+				'_wpnonce',
+				wp_create_nonce( self::invoice_pdf_nonce_action( $invoice_number ) ),
+				wc_get_endpoint_url( 'invoices/pdf', rawurlencode( $invoice_number ), wc_get_page_permalink( 'myaccount' ) )
+			);
+		}
+
 		/**
 		 * Read customer list from RMA
 		 *
@@ -731,27 +856,141 @@ if ( !class_exists('RMA_WC_API') ) {
 
             }
 
-            $requested_rma_invoice_number = strtoupper( sanitize_key( $rma_invoice_number ) );
+            $requested_rma_invoice_number = self::normalize_invoice_number( $rma_invoice_number );
+            if ( '' === $requested_rma_invoice_number ) {
+                return false;
+            }
 
-            // Verify that the current user is supposed to have access to this invoice.
-            $url          = self::get_caller_url() . RMA_MANDANT . '/invoices/' . $requested_rma_invoice_number;
-            $xml_response = wp_remote_get( $url, self::get_rma_http_args( self::get_authenticated_http_args() ) );
-            // TODO: Better error handling on timeouts etc. Is 120 a good value?
+            $rma_user_current = (string) get_user_meta( get_current_user_id(), 'rma_customer', true );
+            if ( '' === $rma_user_current ) {
+                return false;
+            }
+
+            // The customer's invoice list (filtered by customer_number in Run my Accounts) already proves ownership.
+            if ( ! self::cached_customer_has_invoice( $rma_user_current, $requested_rma_invoice_number ) && ! $this->remote_customer_has_invoice( $rma_user_current, $requested_rma_invoice_number ) ) {
+                return false;
+            }
+
+            return $this->fetch_invoice_pdf_body( $requested_rma_invoice_number );
+        }
+
+        /**
+         * Transient holding a customer's invoice list from get_customer_invoices().
+         *
+         * @param string $rma_customer_id Customer number.
+         * @return string
+         */
+        public static function customer_invoices_transient_key( $rma_customer_id ) {
+            return 'invoices_' . $rma_customer_id;
+        }
+
+        /**
+         * Whether the cached, customer-filtered invoice list contains this invoice.
+         *
+         * @param string $rma_customer_id Customer number.
+         * @param string $invoice_number  Normalized invoice number.
+         * @return bool
+         */
+        public static function cached_customer_has_invoice( $rma_customer_id, $invoice_number ) {
+            $invoices = get_transient( self::customer_invoices_transient_key( $rma_customer_id ) );
+            if ( ! is_array( $invoices ) || empty( $invoices['invoice'] ) || ! is_array( $invoices['invoice'] ) ) {
+                return false;
+            }
+
+            foreach ( $invoices['invoice'] as $invoice ) {
+                if ( is_array( $invoice ) && isset( $invoice['invnumber'] ) && self::normalize_invoice_number( $invoice['invnumber'] ) === $invoice_number ) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /**
+         * Customer number on a single invoice response.
+         *
+         * GET /invoices/{number} can nest the customer (as the list does) or carry
+         * `customernumber` at the top level (as the invoice entity does).
+         *
+         * @param mixed $invoice Decoded invoice.
+         * @return string
+         */
+        public static function invoice_customer_number( $invoice ) {
+            if ( ! is_array( $invoice ) ) {
+                return '';
+            }
+            if ( isset( $invoice['customer']['customernumber'] ) && is_scalar( $invoice['customer']['customernumber'] ) ) {
+                return trim( (string) $invoice['customer']['customernumber'] );
+            }
+            if ( isset( $invoice['customernumber'] ) && is_scalar( $invoice['customernumber'] ) ) {
+                return trim( (string) $invoice['customernumber'] );
+            }
+
+            return '';
+        }
+
+        /**
+         * Ask Run my Accounts whether the invoice belongs to the customer.
+         *
+         * @param string $rma_customer_id Customer number.
+         * @param string $invoice_number  Normalized invoice number.
+         * @return bool
+         */
+        private function remote_customer_has_invoice( $rma_customer_id, $invoice_number ) {
+            $url          = self::get_caller_url() . RMA_MANDANT . '/invoices/' . rawurlencode( $invoice_number );
+            $xml_response = wp_remote_get( $url, self::get_rma_http_args( self::get_authenticated_http_args( array( 'headers' => array( 'Accept' => 'application/xml' ) ) ) ) );
             if ( is_wp_error( $xml_response ) ) {
-                $message = $xml_response->get_error_message();
-                return $message;
+                $log_values = array(
+                    'status'     => 'error',
+                    'section_id' => '',
+                    'section'    => esc_html_x( 'Get Invoice PDF', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'mode'       => self::rma_mode(),
+                    'message'    => $xml_response->get_error_message(),
+                );
+
+                self::write_log( $log_values );
+                return false;
+            }
+
+            $xml_status = (int) wp_remote_retrieve_response_code( $xml_response );
+            if ( 200 !== $xml_status ) {
+                $message  = esc_html__( 'Response Code', 'run-my-accounts-for-woocommerce' ) . ' ' . $xml_status;
+                $message .= ' ' . wp_remote_retrieve_response_message( $xml_response );
+                $message  = self::append_response_url_to_message( $message, $xml_response );
+
+                $log_values = array(
+                    'status'     => 'error',
+                    'section_id' => '',
+                    'section'    => esc_html_x( 'Get Invoice PDF', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'mode'       => self::rma_mode(),
+                    'message'    => $message,
+                );
+
+                self::write_log( $log_values );
+                return false;
             }
 
             libxml_use_internal_errors( true );
-            $body    = wp_remote_retrieve_body( $xml_response );
-            $xml     = simplexml_load_string( $body );
-            $invoice = json_decode( json_encode( (array) $xml ), true );
+            $body = wp_remote_retrieve_body( $xml_response );
+            $xml  = simplexml_load_string( $body );
+            if ( false === $xml ) {
+                libxml_clear_errors();
+                $log_values = array(
+                    'status'     => 'error',
+                    'section_id' => '',
+                    'section'    => esc_html_x( 'Get Invoice PDF', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'mode'       => self::rma_mode(),
+                    'message'    => 'Download failed / invoice response was not valid XML',
+                );
 
-            $rma_user_remote  = $invoice['customer']['customernumber'];
-            $rma_user_current = get_user_meta( get_current_user_id(), 'rma_customer', true );
+                self::write_log( $log_values );
+                return false;
+            }
 
-            // User does not match or invoice does not exist for this user
-            if ( $rma_user_remote !== $rma_user_current ) {
+            $rma_user_remote = self::invoice_customer_number( json_decode( json_encode( (array) $xml ), true ) );
+
+            // User does not match or invoice does not exist for this user.
+            if ( '' === $rma_user_remote || $rma_user_remote !== $rma_customer_id ) {
                 $log_values = array(
                     'status'     => 'error',
                     'section_id' => '',
@@ -764,11 +1003,35 @@ if ( !class_exists('RMA_WC_API') ) {
                 return false;
             }
 
-            $url      = self::get_caller_url() . RMA_MANDANT . '/invoices/' . $requested_rma_invoice_number . '/pdf';
+            return true;
+        }
+
+        /**
+         * Download the PDF body. Returns false unless the response is a real PDF.
+         *
+         * @param string $invoice_number Normalized invoice number.
+         * @return string|false
+         */
+        private function fetch_invoice_pdf_body( $invoice_number ) {
+            $url      = self::get_caller_url() . RMA_MANDANT . '/invoices/' . rawurlencode( $invoice_number ) . '/pdf';
             $response = wp_remote_get( $url, self::get_rma_http_args( self::get_authenticated_http_args() ) );
 
-            // Check response code
-            if ( 200 <> wp_remote_retrieve_response_code( $response ) ) {
+            if ( is_wp_error( $response ) ) {
+                $log_values = array(
+                    'status'     => 'error',
+                    'section_id' => '',
+                    'section'    => esc_html_x( 'Get Invoice PDF', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'mode'       => self::rma_mode(),
+                    'message'    => $response->get_error_message(),
+                );
+
+                self::write_log( $log_values );
+
+                return false;
+            }
+
+            // Check response code.
+            if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
 
                 $message  = esc_html__( 'Response Code', 'run-my-accounts-for-woocommerce' ) . ' ' . wp_remote_retrieve_response_code( $response );
                 $message .= ' ' . wp_remote_retrieve_response_message( $response );
@@ -787,20 +1050,26 @@ if ( !class_exists('RMA_WC_API') ) {
 
                 return false;
 
-            } else {
-
-                libxml_use_internal_errors( true );
-
-                $body         = wp_remote_retrieve_body( $response );
-                $content_type = wp_remote_retrieve_header( $response, 'content-type' );
-
-                if ( 'application/pdf' !== $content_type ) {
-                    // ToDo: Add this information to error log
-                    return false;
-                } else {
-                    return ( ! empty( $body ) ? $body : false );
-                }
             }
+
+            $body         = wp_remote_retrieve_body( $response );
+            $content_type = wp_remote_retrieve_header( $response, 'content-type' );
+
+            if ( ! self::is_pdf_content_type( $content_type ) || ! self::body_is_pdf( $body ) ) {
+                $log_values = array(
+                    'status'     => 'error',
+                    'section_id' => '',
+                    'section'    => esc_html_x( 'Get Invoice PDF', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'mode'       => self::rma_mode(),
+                    'message'    => 'Download failed / response was not a PDF',
+                );
+
+                self::write_log( $log_values );
+
+                return false;
+            }
+
+            return $body;
         }
 
 		/**
@@ -1114,7 +1383,19 @@ if ( !class_exists('RMA_WC_API') ) {
 			return $bookings;
 		}
 
-		public function get_invoice_status() {
+		/**
+		 * Invoice number => status for invoices dated within the window.
+		 *
+		 * Without `from`, Run my Accounts returns only invoices after the accounting
+		 * close date, and without `to` only up to today in its own timezone.
+		 *
+		 * @param string $from yyyy-MM-dd.
+		 * @param string $to   yyyy-MM-dd.
+		 * @return array<string,string>|false
+		 */
+		public function get_invoice_status( $from = '1900-01-01', $to = null ) {
+
+			self::$last_invoice_status_error = '';
 
 			if ( ! RMA_MANDANT || ! RMA_APIKEY ) {
 
@@ -1127,25 +1408,37 @@ if ( !class_exists('RMA_WC_API') ) {
 				);
 
 				self::write_log( $log_values );
+				self::$last_invoice_status_error = __( 'Missing API data', 'rma-wc' );
 
 				return false;
 
 			}
 
-			$url      = self::get_caller_url() . RMA_MANDANT . '/invoices';
-			$response = wp_remote_get( $url, self::get_authenticated_http_args() );
+			if ( null === $to ) {
+				$to = gmdate( 'Y-m-d', time() + DAY_IN_SECONDS );
+			}
+			$url      = add_query_arg(
+				array(
+					'from' => sanitize_key( $from ),
+					'to'   => sanitize_key( $to ),
+				),
+				self::get_caller_url() . RMA_MANDANT . '/invoices'
+			);
+			$response = wp_remote_get(
+				$url,
+				self::get_rma_http_args( self::get_authenticated_http_args( array( 'headers' => array( 'Accept' => 'application/xml' ) ) ) )
+			);
 
-			// Check response code
-			if ( 200 <> wp_remote_retrieve_response_code( $response ) ) {
+			// A timeout is a WP_Error. Do not read it as an array: that fatals the cron callback on PHP 8.
+			if ( is_wp_error( $response ) || 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
 
 				$message  = esc_html__( 'Response Code', 'rma-wc' ) . ' ' . wp_remote_retrieve_response_code( $response );
 				$message .= ' ' . wp_remote_retrieve_response_message( $response );
 
-				$response = (array) $response['http_response'];
-
-				foreach ( $response as $object ) {
-					$message .= ' ' . $object->url;
-					break;
+				if ( is_wp_error( $response ) ) {
+					$message .= ' ' . $response->get_error_message();
+				} else {
+					$message = self::append_response_url_to_message( $message, $response );
 				}
 
 				$log_values = array(
@@ -1157,32 +1450,46 @@ if ( !class_exists('RMA_WC_API') ) {
 				);
 
 				self::write_log( $log_values );
+				self::$last_invoice_status_error = trim( $message );
 
 				return false;
 
-			} else {
-				libxml_use_internal_errors( true );
-
-				$body = wp_remote_retrieve_body( $response );
-				$xml  = simplexml_load_string( $body );
-
-				if ( ! $xml ) {
-					// ToDO: Add this information to error log
-					foreach ( libxml_get_errors() as $error ) {
-						echo "\t", $error->message;
-					}
-
-					return false;
-
-				} else {
-					$status_array = array();
-					foreach ( $xml->invoice as $invoice ) {
-						$row = json_decode( json_encode( (array) $invoice ), true );
-						$status_array[ $row['invnumber'] ] = $row['status'];
-					}
-					return ( ! empty( $status_array ) ? $status_array : false );
-				}
 			}
+
+			libxml_use_internal_errors( true );
+
+			$body = wp_remote_retrieve_body( $response );
+			$xml  = simplexml_load_string( $body );
+
+			if ( ! $xml ) {
+				libxml_clear_errors();
+				self::$last_invoice_status_error = __( 'Run my Accounts did not return valid XML.', 'rma-wc' );
+				return false;
+			}
+
+			$status_array = array();
+			foreach ( $xml->invoice as $invoice ) {
+				$row = json_decode( json_encode( (array) $invoice ), true );
+				if ( ! is_array( $row ) || ! isset( $row['invnumber'], $row['status'] ) ) {
+					continue;
+				}
+				if ( ! is_scalar( $row['invnumber'] ) || ! is_scalar( $row['status'] ) ) {
+					continue;
+				}
+				$invoice_number = trim( (string) $row['invnumber'] );
+				$status         = trim( (string) $row['status'] );
+				if ( '' === $invoice_number || '' === $status ) {
+					continue;
+				}
+				$status_array[ $invoice_number ] = $status;
+			}
+
+			if ( empty( $status_array ) ) {
+				self::$last_invoice_status_error = __( 'Run my Accounts returned no invoices.', 'rma-wc' );
+				return false;
+			}
+
+			return $status_array;
 		}
 
 		/**

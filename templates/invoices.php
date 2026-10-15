@@ -78,13 +78,10 @@ $invoice_columns = array(
 						<td class="woocommerce-invoices-table__cell woocommerce-invoices-table__cell-<?php echo esc_attr( $column_id ); ?>" data-title="<?php echo esc_attr( $column_name ); ?>">
 							<?php if ( has_action( 'woocommerce_my_account_my_invoices_column_' . $column_id ) ) : ?>
 								<?php do_action( 'woocommerce_my_account_my_invoices_column_' . $column_id, $invoice ); ?>
-							// TODO: This link is not implemented yet.
 							<?php elseif ( 'invnumber' === $column_id ) : ?>
 
-								<a href="<?php _e( wc_get_endpoint_url( 'view-order',  $invoice['invnumber'] ), wc_get_page_permalink( 'orders' )); ?>">
-									<?php echo esc_html( _x( '#', 'hash before invoice number', 'woocommerce' ) . $invoice['invnumber'] ); ?>
-								</a>
-								<?php echo esc_html( $invoice['customer']['name'] ); ?>
+								<?php echo esc_html( _x( '#', 'hash before invoice number', 'woocommerce' ) . ( $invoice['invnumber'] ?? '' ) ); ?>
+								<?php echo esc_html( $invoice['customer']['name'] ?? '' ); ?>
 
 							<?php elseif ( 'duedate' === $column_id ) : ?>
 								<?php $duedate = $invoice['duedate'] ?? ''; ?>
@@ -102,15 +99,16 @@ $invoice_columns = array(
 
 							<?php elseif ( 'pdf' === $column_id ) : ?>
 								<?php
-								$nonce          = wp_create_nonce( 'download-pdf-nonce-' . strtoupper( $invoice['invnumber'] ) );
-								$download_link  = '<a href="' . wc_get_endpoint_url( 'invoices/pdf', $invoice['invnumber'] );
-								$download_link .= '?_wpnonce=' . $nonce . '';
-								$download_link .= '" download="' . $invoice['invnumber'] . '.pdf"';
-								$download_link .= 'target="_blank"';
-								$download_link .= '>';
-								$download_link .= 'Download PDF';
-								$download_link .= '</a>';
-								echo $download_link;
+								$invoice_number = RMA_WC_API::normalize_invoice_number( isset( $invoice['invnumber'] ) ? $invoice['invnumber'] : '' );
+								if ( '' === $invoice_number ) {
+									echo esc_html__( 'Download PDF', 'rma-wc' );
+								} else {
+									printf(
+										'<a href="%1$s" target="_blank" rel="noopener noreferrer">%2$s</a>',
+										esc_url( RMA_WC_API::invoice_pdf_download_url( $invoice_number ) ),
+										esc_html__( 'Download PDF', 'rma-wc' )
+									);
+								}
 								?>
 							<?php endif; ?>
 						</td>
