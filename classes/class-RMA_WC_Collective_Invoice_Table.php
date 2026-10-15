@@ -67,6 +67,13 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 	private array $current_page_groups = array();
 
 	/**
+	 * Cached payment-method filter choices.
+	 *
+	 * @var array<string,string>|null
+	 */
+	private ?array $payment_method_filter_options = null;
+
+	/**
 	 * Constructor, we override the parent to pass our own arguments
 	 * We usually focus on three parameters: singular and plural labels, as well as whether the class supports AJAX.
 	 */
@@ -163,7 +170,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 					wp_die( esc_html__( 'Current user does not have the permission to create invoices.', 'rma-wc' ), '', array( 'response' => 403 ) );
 				}
 
-				$invoice_title_en       = get_option( 'rma_invoice_title_en', __( 'SailCom Abrechnung', 'woocommerce-sailcom' ) );
+				$invoice_title_en       = get_option( 'rma_invoice_title_en', self::default_invoice_title() );
 				$invoice_description_en = get_option( 'rma_invoice_description_en', '' );
 				$invoice_footer_en      = get_option( 'rma_invoice_footer_en', '' );
 
@@ -492,7 +499,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			}
 			$readonly = 'plan' === $this->execution_mode ? '' : 'readonly';
 
-			$invoice_title_en       = get_option( 'rma_invoice_title_en', __( 'SailCom Abrechnung', 'woocommerce-sailcom' ) );
+			$invoice_title_en       = get_option( 'rma_invoice_title_en', self::default_invoice_title() );
 			$invoice_description_en = get_option( 'rma_invoice_description_en', '' );
 			$invoice_footer_en      = get_option( 'rma_invoice_footer_en', '' );
 
@@ -560,8 +567,8 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			?>
 
 			<div id="user-list-text-area">
-				<label for="user-list-filter" style="display:block" >Filter user list by GBID: Enter list of GBID and click [Apply Filter]</label>
-				<textarea id="user-list-filter" name="user-list-filter" rows="2" style="display:block; width:100%" placeholder="Paste a list of customer id's ('N12345,SCK789,T231')."><?php echo esc_attr( $textarea_value ); ?></textarea>
+				<label for="user-list-filter" style="display:block"><?php esc_html_e( 'Filter by customer number (separate several numbers with commas or spaces):', 'rma-wc' ); ?></label>
+				<textarea id="user-list-filter" name="user-list-filter" rows="2" style="display:block; width:100%" placeholder="N12345, SCK789, T231"><?php echo esc_textarea( $textarea_value ); ?></textarea>
 				<?php submit_button( 'Apply Filter', '', '', false, array( 'id' => 'search-submit' ) ); ?>
 			</div>
 			<?php
@@ -569,41 +576,12 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			$page = isset( $_REQUEST['page'] ) ? sanitize_key( wp_unslash( $_REQUEST['page'] ) ) : 'invoice-dashboard';
 			echo '<input type="hidden" name="page" value="' . esc_attr( $page ) . '" />';
 
-			/**
-			 * Third party filter
-			 */
-			/*
-				// $partner_id = $order->get_meta( 'third-party-invoice-partner' );
-				$partners   = (array) ( new SailCom\SailCom_Gateway_Third_Party() )->get_option( 'partners' );
-
-				$payment_method_filter = '' !== $_REQUEST['payment-method-filter'] ? sanitize_text_field( wp_unslash( $_REQUEST['payment-method-filter'] ) ) : '';
-				echo '<select style="width:50%;" class="select short payment-method-filter" name="payment-method-filter" data-allow_clear="true">';
-
-				$selected = '' === $payment_method_filter ? 'selected' : '';
-				echo '<option class="select short" value="" ' . esc_attr( $selected ) . '></option>';
-
-				foreach ( $partners as $key => $p ) {
-					$selected = ( (string) $key ) === $payment_method_filter ? 'selected' : '';
-					echo '<option class="select short" value="' . esc_attr( $key ) . '" ' . esc_attr( $selected ) . '>' . htmlspecialchars( wp_kses_post( $p['name'] ) ) . '</option>';
-
-				}
-				echo '</select>';
-			*/
-
-			/** Payment Method Filter */
-			$payment_method_filter = isset( $_REQUEST['payment-method-filter'] )
-				? sanitize_text_field( wp_unslash( $_REQUEST['payment-method-filter'] ) )
-				: 'sailcom-invoice';
+			/** Payment Method Filter: only methods whose orders are invoiced through Run my Accounts. */
+			$payment_method_filter = $this->current_payment_method_filter();
 			echo '<select style="width:50%;" class="select short payment-method-filter" name="payment-method-filter" data-allow_clear="true">';
-			$selected = '' === $payment_method_filter ? 'selected' : '';
-			echo '<option class="select short" value="" ' . esc_attr( $selected ) . '></option>';
-			$selected = 'no-payment-method' === $payment_method_filter ? 'selected' : '';
-			echo '<option class="select short" value="no-payment-method" ' . esc_attr( $selected ) . '>&lt;no payment method&gt;></option>';
-
-			foreach ( array( 'sailcom-invoice', 'sailcom-third-party', 'sailcom-cash2organizer', 'cod' ) as $method ) {
-				$selected = ( $method ) === $payment_method_filter ? 'selected' : '';
-				echo '<option class="select short" value="' . esc_attr( $method ) . '" ' . esc_attr( $selected ) . '>' . htmlspecialchars( wp_kses_post( $method ) ) . '</option>';
-
+			echo '<option class="select short" value="" ' . esc_attr( wc_selected( $payment_method_filter, '' ) ) . '>' . esc_html__( 'All payment methods', 'rma-wc' ) . '</option>';
+			foreach ( $this->payment_method_filter_options() as $value => $label ) {
+				echo '<option class="select short" value="' . esc_attr( $value ) . '" ' . esc_attr( wc_selected( $payment_method_filter, (string) $value ) ) . '>' . esc_html( $label ) . '</option>';
 			}
 			echo '</select>';
 
@@ -628,6 +606,55 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			}
 			// $this->show_action_form();<form
 		}
+	}
+
+	/**
+	 * Payment-method filter choices: methods on the Run my Accounts route, plus orders without one
+	 * when those are on that route too.
+	 *
+	 * @return array<string,string> Filter value => label.
+	 */
+	private function payment_method_filter_options(): array {
+		if ( null !== $this->payment_method_filter_options ) {
+			return $this->payment_method_filter_options;
+		}
+
+		$options = array();
+		foreach ( WC()->payment_gateways()->payment_gateways() as $id => $gateway ) {
+			$id = (string) $id;
+			if ( RMA_WC_API::INVOICE_ROUTE_RMA !== RMA_WC_API::payment_method_invoice_route( $id ) ) {
+				continue;
+			}
+			$title          = $gateway instanceof WC_Payment_Gateway ? wp_strip_all_tags( (string) $gateway->get_method_title() ) : '';
+			$options[ $id ] = '' === $title ? $id : sprintf( '%1$s (%2$s)', $title, $id );
+		}
+		if ( RMA_WC_API::INVOICE_ROUTE_RMA === RMA_WC_API::payment_method_invoice_route( '' ) ) {
+			$options['no-payment-method'] = __( 'No payment method', 'rma-wc' );
+		}
+
+		$this->payment_method_filter_options = $options;
+
+		return $options;
+	}
+
+	/**
+	 * Requested payment-method filter, or '' (all) when it is not one of the offered choices.
+	 *
+	 * @return string
+	 */
+	private function current_payment_method_filter(): string {
+		$value = isset( $_REQUEST['payment-method-filter'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['payment-method-filter'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+		return array_key_exists( $value, $this->payment_method_filter_options() ) ? $value : '';
+	}
+
+	/**
+	 * Default title for collective invoices when none was saved on the dashboard.
+	 *
+	 * @return string
+	 */
+	private static function default_invoice_title(): string {
+		return (string) apply_filters( 'rma_wc_default_invoice_title', __( 'Invoice', 'rma-wc' ) );
 	}
 
 	/**
@@ -748,9 +775,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			$user_id_filter = $customer_query->get_results();
 		}
 
-		$payment_method_filter = isset( $_REQUEST['payment-method-filter'] )
-			? sanitize_text_field( wp_unslash( $_REQUEST['payment-method-filter'] ) )
-			: 'sailcom-invoice';
+		$payment_method_filter = $this->current_payment_method_filter();
 		$groups_per_page       = max( 1, (int) $this->get_items_per_page( 'invoice_dashboard_groups_per_page', 20 ) );
 		$current_page          = max( 1, $this->get_pagenum() );
 		$filter                = ! empty( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '';
