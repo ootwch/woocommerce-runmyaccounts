@@ -285,6 +285,73 @@ if ( !class_exists('RMA_WC_API') ) {
 		}
 
 		/**
+		 * Customer number safe to put in an API path segment or query value.
+		 *
+		 * Unlike sanitize_key() it keeps the case and characters such as ".",
+		 * because Run my Accounts matches the number as stored.
+		 *
+		 * @param mixed $customer_number Raw customer number.
+		 * @return string Trimmed number, or an empty string when the value is unusable.
+		 */
+		public static function normalize_customer_number( $customer_number ) {
+			if ( ! is_scalar( $customer_number ) ) {
+				return '';
+			}
+			$value = trim( (string) $customer_number );
+			if ( '' === $value || strlen( $value ) > 64 ) {
+				return '';
+			}
+			if ( false !== strpos( $value, '..' ) ) {
+				return '';
+			}
+			if ( preg_match( '/[\x00-\x1F\x7F\/\\\\]/', $value ) ) {
+				return '';
+			}
+
+			return $value;
+		}
+
+		/**
+		 * Calendar date in the YYYY-MM-DD form the Run my Accounts API expects.
+		 *
+		 * @param mixed $date Raw date.
+		 * @return string The date, or an empty string when it is not a valid date.
+		 */
+		public static function normalize_api_date( $date ) {
+			if ( ! is_scalar( $date ) ) {
+				return '';
+			}
+			$value = trim( (string) $date );
+			if ( ! preg_match( '/^(\d{4})-(\d{2})-(\d{2})$/', $value, $parts ) ) {
+				return '';
+			}
+
+			return checkdate( (int) $parts[2], (int) $parts[3], (int) $parts[1] ) ? $value : '';
+		}
+
+		/**
+		 * `from` and optional `to` query arguments for the list endpoints.
+		 *
+		 * @param mixed $from YYYY-MM-DD.
+		 * @param mixed $to   YYYY-MM-DD, or empty for no upper bound.
+		 * @return array<string,string>|false False when a given date is not valid.
+		 */
+		public static function date_range_query_args( $from, $to = null ) {
+			$query_args = array( 'from' => self::normalize_api_date( $from ) );
+			if ( '' === $query_args['from'] ) {
+				return false;
+			}
+			if ( null !== $to && '' !== $to ) {
+				$query_args['to'] = self::normalize_api_date( $to );
+				if ( '' === $query_args['to'] ) {
+					return false;
+				}
+			}
+
+			return $query_args;
+		}
+
+		/**
 		 * Status to store for an order, or null when this order must not be updated.
 		 *
 		 * An empty stored invoice, or a stored invoice that is not the one just
@@ -715,7 +782,12 @@ if ( !class_exists('RMA_WC_API') ) {
 
             }
 
-            $url = self::get_caller_url() . RMA_MANDANT . '/customers/' . sanitize_key( $rma_customer_id );
+            $customer_number = self::normalize_customer_number( $rma_customer_id );
+            if ( '' === $customer_number ) {
+                return false;
+            }
+
+            $url = self::get_caller_url() . RMA_MANDANT . '/customers/' . rawurlencode( $customer_number );
 
             $response = wp_remote_get( $url, self::get_rma_http_args( self::get_authenticated_http_args() ) );
 
@@ -792,14 +864,17 @@ if ( !class_exists('RMA_WC_API') ) {
 
             }
 
-            $query_args = array(
-                'from' => sanitize_key( $from ),
-            );
-            if ( ! empty( $rma_customer_id ) ) {
-                $query_args['customer_number'] = sanitize_key( $rma_customer_id );
+            $query_args = self::date_range_query_args( $from, $to );
+            if ( false === $query_args ) {
+                return false;
             }
-            if ( ! empty( $to ) ) {
-                $query_args['to'] = sanitize_key( $to );
+            // An unusable customer number must not fall back to the unfiltered list of all customers' invoices.
+            if ( null !== $rma_customer_id ) {
+                $customer_number = self::normalize_customer_number( $rma_customer_id );
+                if ( '' === $customer_number ) {
+                    return false;
+                }
+                $query_args['customer_number'] = rawurlencode( $customer_number );
             }
             $url      = add_query_arg( $query_args, self::get_caller_url() . RMA_MANDANT . '/invoices' );
             $response = wp_remote_get( $url, self::get_rma_http_args( self::get_authenticated_http_args() ) );
@@ -877,11 +952,9 @@ if ( !class_exists('RMA_WC_API') ) {
 
             }
 
-            $query_args = array(
-                'from' => sanitize_key( $from ),
-            );
-            if ( ! empty( $to ) ) {
-                $query_args['to'] = sanitize_key( $to );
+            $query_args = self::date_range_query_args( $from, $to );
+            if ( false === $query_args ) {
+                return false;
             }
             $url      = add_query_arg( $query_args, self::get_caller_url() . RMA_MANDANT . '/payables' );
             $response = wp_remote_get( $url, self::get_rma_http_args( self::get_authenticated_http_args() ) );
@@ -966,7 +1039,7 @@ if ( !class_exists('RMA_WC_API') ) {
                 return false;
             }
 
-            $rma_user_current = (string) get_user_meta( get_current_user_id(), 'rma_customer', true );
+            $rma_user_current = self::normalize_customer_number( get_user_meta( get_current_user_id(), 'rma_customer', true ) );
             if ( '' === $rma_user_current ) {
                 return false;
             }
@@ -986,7 +1059,7 @@ if ( !class_exists('RMA_WC_API') ) {
          * @return string
          */
         public static function customer_invoices_transient_key( $rma_customer_id ) {
-            return 'invoices_' . $rma_customer_id;
+            return 'invoices_' . self::normalize_customer_number( $rma_customer_id );
         }
 
         /**
@@ -1095,7 +1168,7 @@ if ( !class_exists('RMA_WC_API') ) {
             $rma_user_remote = self::invoice_customer_number( json_decode( json_encode( (array) $xml ), true ) );
 
             // User does not match or invoice does not exist for this user.
-            if ( '' === $rma_user_remote || $rma_user_remote !== $rma_customer_id ) {
+            if ( '' === $rma_user_remote || self::normalize_customer_number( $rma_user_remote ) !== self::normalize_customer_number( $rma_customer_id ) ) {
                 $log_values = array(
                     'status'     => 'error',
                     'section_id' => '',
@@ -1522,13 +1595,12 @@ if ( !class_exists('RMA_WC_API') ) {
 			if ( null === $to ) {
 				$to = gmdate( 'Y-m-d', time() + DAY_IN_SECONDS );
 			}
-			$url      = add_query_arg(
-				array(
-					'from' => sanitize_key( $from ),
-					'to'   => sanitize_key( $to ),
-				),
-				self::get_caller_url() . RMA_MANDANT . '/invoices'
-			);
+			$query_args = self::date_range_query_args( $from, $to );
+			if ( false === $query_args ) {
+				self::$last_invoice_status_error = __( 'Invalid date range for the Run my Accounts request.', 'rma-wc' );
+				return false;
+			}
+			$url      = add_query_arg( $query_args, self::get_caller_url() . RMA_MANDANT . '/invoices' );
 			$response = wp_remote_get(
 				$url,
 				self::get_rma_http_args( self::get_authenticated_http_args( array( 'headers' => array( 'Accept' => 'application/xml' ) ) ) )
@@ -2002,15 +2074,14 @@ if ( !class_exists('RMA_WC_API') ) {
 
 			$order = wc_get_order( $order_id );
 			if ( ! $order instanceof WC_Order || ! self::is_rma_invoice_route( $order ) ) {
-				self::write_log(
-					array(
-						'status'     => 'error',
-						'section_id' => $order_id,
-						'section'    => esc_html_x( 'Invoice', 'Log Section', 'run-my-accounts-for-woocommerce' ),
-						'mode'       => self::rma_mode(),
-						'message'    => 'Order is not invoiced through Run my Accounts (route: ' . ( $order instanceof WC_Order ? self::order_invoice_route( $order ) : 'unknown' ) . ')',
-					)
+				$log_values = array(
+					'status'     => 'error',
+					'section_id' => $order_id,
+					'section'    => esc_html_x( 'Invoice', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+					'mode'       => self::rma_mode(),
+					'message'    => 'Order is not invoiced through Run my Accounts (route: ' . ( $order instanceof WC_Order ? self::order_invoice_route( $order ) : 'unknown' ) . ')',
 				);
+				self::write_log( $log_values );
 				return false;
 			}
 

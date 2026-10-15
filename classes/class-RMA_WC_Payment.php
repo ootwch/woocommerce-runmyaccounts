@@ -81,10 +81,21 @@ class RMA_WC_Payment {
 
         // get the Run My Accounts invoice number
 	    $order = wc_get_order( $this->order_id );
-	    $this->invoice = $order->get_meta('_rma_invoice', true );
+	    $this->invoice = trim( (string) $order->get_meta('_rma_invoice', true ) );
+        if ( '' === RMA_WC_API::normalize_invoice_number( $this->invoice ) ) {
+            $log_values = array(
+                'status'     => 'error',
+                'section_id' => $this->order_id,
+                'section'    => esc_html_x('Payment', 'Log Section', 'run-my-accounts-for-woocommerce'),
+                'mode'       => RMA_WC_API::rma_mode(),
+                'message'    => 'Payment not booked: the order has no usable Run my Accounts invoice number',
+            );
+            RMA_WC_API::write_log( $log_values );
+            return false;
+        }
 
         $data = self::get_payment_details();
-        $url  = RMA_WC_API::get_caller_url() . RMA_MANDANT . '/invoices/' . $this->invoice . '/payments';
+        $url  = RMA_WC_API::get_caller_url() . RMA_MANDANT . '/invoices/' . rawurlencode( $this->invoice ) . '/payments';
 
         //create the xml document
         $xml  = new DOMDocument('1.0', 'UTF-8');

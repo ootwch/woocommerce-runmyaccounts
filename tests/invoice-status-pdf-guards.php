@@ -81,6 +81,25 @@ rma_guard_same( false, RMA_WC_API::body_is_pdf( 'cURL error 28: Operation timed 
 rma_guard_same( false, RMA_WC_API::body_is_pdf( '' ), 'empty body is not a PDF' );
 rma_guard_same( false, RMA_WC_API::body_is_pdf( false ), 'false is not a PDF' );
 
+rma_guard_same( 'N12345', RMA_WC_API::normalize_customer_number( ' N12345 ' ), 'keeps the case of customer numbers' );
+rma_guard_same( 'SCK.789', RMA_WC_API::normalize_customer_number( 'SCK.789' ), 'keeps dots in customer numbers' );
+rma_guard_same( 'A&B', RMA_WC_API::normalize_customer_number( 'A&B' ), 'keeps characters that are encoded later' );
+rma_guard_same( '', RMA_WC_API::normalize_customer_number( 'N1/2' ), 'rejects a slash in a customer number' );
+rma_guard_same( '', RMA_WC_API::normalize_customer_number( '..' ), 'rejects traversal in a customer number' );
+rma_guard_same( '', RMA_WC_API::normalize_customer_number( "N1\n2" ), 'rejects a newline in a customer number' );
+rma_guard_same( '', RMA_WC_API::normalize_customer_number( '' ), 'rejects an empty customer number' );
+rma_guard_same( '', RMA_WC_API::normalize_customer_number( array( 'N1' ) ), 'rejects a non-scalar customer number' );
+rma_guard_same( RMA_WC_API::customer_invoices_transient_key( 'N12345' ), RMA_WC_API::customer_invoices_transient_key( ' N12345 ' ), 'cache key ignores surrounding spaces' );
+
+rma_guard_same( '2026-02-28', RMA_WC_API::normalize_api_date( '2026-02-28' ), 'valid API date' );
+rma_guard_same( '', RMA_WC_API::normalize_api_date( '2026-02-30' ), 'rejects an impossible date' );
+rma_guard_same( '', RMA_WC_API::normalize_api_date( '2026-2-1' ), 'rejects a date without leading zeros' );
+rma_guard_same( '', RMA_WC_API::normalize_api_date( '2026-02-01&x=1' ), 'rejects extra query text' );
+rma_guard_same( array( 'from' => '1900-01-01' ), RMA_WC_API::date_range_query_args( '1900-01-01' ), 'open date range' );
+rma_guard_same( array( 'from' => '2026-01-01', 'to' => '2026-01-31' ), RMA_WC_API::date_range_query_args( '2026-01-01', '2026-01-31' ), 'closed date range' );
+rma_guard_same( false, RMA_WC_API::date_range_query_args( 'yesterday' ), 'invalid from date' );
+rma_guard_same( false, RMA_WC_API::date_range_query_args( '2026-01-01', '31.01.2026' ), 'invalid to date' );
+
 // Invoicing routes: plugin default sends everything to Run my Accounts.
 rma_guard_same( 'rma', RMA_WC_API::payment_method_invoice_route( 'cod' ), 'default route is Run my Accounts' );
 $params = array();
