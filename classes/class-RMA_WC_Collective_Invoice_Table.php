@@ -163,6 +163,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 				}
 
 				$this->execution_mode = 'confirm';
+				add_action( 'admin_table_notices', array( $this, 'admin_notice_confirm_step' ) );
 				return;
 
 			case 'confirm-invoice':
@@ -296,6 +297,36 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			'<div class="notice notice-warning inline"><p>%s</p></div>',
 			esc_html__( 'No invoice was selected, so no invoice was created.', 'rma-wc' )
 		);
+	}
+
+	/**
+	 * Confirm step: number of selected invoices, what to do next, and the way back to change the selection.
+	 *
+	 * @return void
+	 */
+	public function admin_notice_confirm_step() {
+		$back_url = add_query_arg(
+			array_filter(
+				array(
+					'page'                  => 'invoice-dashboard',
+					'payment-method-filter' => $this->current_payment_method_filter(),
+					'language-filter'       => $this->current_language_filter(),
+					'boat-rental-filter'    => isset( $_REQUEST['boat-rental-filter'] ) ? sanitize_key( wp_unslash( $_REQUEST['boat-rental-filter'] ) ) : '', // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+					's'                     => isset( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '', // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+				)
+			),
+			admin_url( 'admin.php' )
+		);
+		printf(
+			'<div class="notice notice-info inline" id="invoice-confirm-step"><p id="selected-invoice-amount"><strong>%1$s</strong> %2$d</p><p>%3$s<br><a href="%4$s">%5$s</a></p></div>',
+			esc_html__( 'Selected invoices:', 'rma-wc' ),
+			(int) count( $this->items ),
+			esc_html__( 'Check the selected invoices, then choose "CONFIRM: Create invoices for selected orders" and click Apply. The selection cannot be changed on this step.', 'rma-wc' ),
+			esc_url( $back_url ),
+			esc_html__( 'Back to the dashboard to change the selection', 'rma-wc' )
+		);
+		// WordPress' select-all would untick the disabled (read-only) checkboxes of this step.
+		echo '<style>#cb-select-all-1,#cb-select-all-2{display:none}</style>';
 	}
 
 	public function enqueue_admin_js( $hook ) {
@@ -478,13 +509,6 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 				(int) ( $this->summary_counts['groups'] ?? 0 )
 			);
 
-			if ( 'confirm' === $this->execution_mode ) {
-				echo '<div id="selected-invoice-amount"><strong>Selected Number of Invoices</strong>' . esc_attr( count( $this->items ) ) . '</div>';
-			} else {
-
-				// $this->show_action_form();
-			}
-
 			$language_counts = $this->invoice_language_counts();
 			if ( ! empty( $language_counts ) ) {
 				$parts = array();
@@ -585,12 +609,26 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			}
 			echo '</select>';
 
+			/** Language Filter: invoice language is the language of the group's first order. */
+			$language_filter = $this->current_language_filter();
+			$language_counts = (array) ( $this->summary_counts['languages'] ?? array() );
+			if ( '' !== $language_filter && ! isset( $language_counts[ $language_filter ] ) ) {
+				$language_counts[ $language_filter ] = 0;
+			}
+			echo '<select style="width:50%;" class="select short language-filter" name="language-filter" id="language-filter">';
+			echo '<option class="select short" value="" ' . esc_attr( wc_selected( $language_filter, '' ) ) . '>' . esc_html__( 'All languages', 'rma-wc' ) . '</option>';
+			foreach ( $language_counts as $lang => $count ) {
+				$lang = (string) $lang;
+				echo '<option class="select short" value="' . esc_attr( $lang ) . '" ' . esc_attr( wc_selected( $language_filter, $lang ) ) . '>' . esc_html( sprintf( '%1$s (%2$d)', strtoupper( $lang ), (int) $count ) ) . '</option>';
+			}
+			echo '</select>';
+
 			/** Boat Rental Filter */
 			$boat_rental_filter = isset( $_REQUEST['boat-rental-filter'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['boat-rental-filter'] ) ) : '';
-			echo '<select style="width:50%;" class="select short boat-rental-filter" name="boat-rental-filter" data-allow_clear="true">';;
-			echo '<option class="select short" value="" ' . esc_attr( wc_selected( $boat_rental_filter, '' ) ) . '></option>';
-			echo '<option class="select short" value="rental-only" ' . esc_attr( wc_selected( $boat_rental_filter, 'rental-only' ) ) . '>&lt;Only rental products&gt;></option>';
-			echo '<option class="select short" value="no-rental" ' . esc_attr( wc_selected( $boat_rental_filter, 'no-rental' ) ) . '>&lt;Exclude rental products&gt;></option>';
+			echo '<select style="width:50%;" class="select short boat-rental-filter" name="boat-rental-filter" id="boat-rental-filter" data-allow_clear="true">';
+			echo '<option class="select short" value="" ' . esc_attr( wc_selected( $boat_rental_filter, '' ) ) . '>' . esc_html__( 'All products', 'rma-wc' ) . '</option>';
+			echo '<option class="select short" value="rental-only" ' . esc_attr( wc_selected( $boat_rental_filter, 'rental-only' ) ) . '>' . esc_html__( 'Only rental products', 'rma-wc' ) . '</option>';
+			echo '<option class="select short" value="no-rental" ' . esc_attr( wc_selected( $boat_rental_filter, 'no-rental' ) ) . '>' . esc_html__( 'Exclude rental products', 'rma-wc' ) . '</option>';
 			echo '</select>';
 
 			$this->search_box( 'Search', 'customer-search' );
@@ -649,6 +687,17 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 	}
 
 	/**
+	 * Requested invoice language (e.g. en, de, fr, pt-br), or '' (all).
+	 *
+	 * @return string
+	 */
+	private function current_language_filter(): string {
+		$value = isset( $_REQUEST['language-filter'] ) ? sanitize_key( wp_unslash( $_REQUEST['language-filter'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+		return 1 === preg_match( '/^[a-z]{2,3}(-[a-z0-9]{2,8})?$/', $value ) ? $value : '';
+	}
+
+	/**
 	 * Default title for collective invoices when none was saved on the dashboard.
 	 *
 	 * @return string
@@ -670,9 +719,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 			if ( 'confirm' === $this->execution_mode && ! isset( $this->items[ $group['invoice_id'] ?? '' ] ) ) {
 				continue;
 			}
-			$first_order_id = (int) ( $group['order_ids'][0] ?? 0 );
-			$order          = $first_order_id ? wc_get_order( $first_order_id ) : false;
-			$lang           = $order instanceof WC_Order ? RMA_WC_Order_Language::get_order_language( $order ) : 'en';
+			$lang            = (string) ( $group['language'] ?? '' );
 			$counts[ $lang ] = ( $counts[ $lang ] ?? 0 ) + 1;
 		}
 		ksort( $counts );
@@ -781,7 +828,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		$filter                = ! empty( $_REQUEST['s'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) : '';
 
 		$t         = new RMA_WC_Collective_Invoicing();
-		$plan_data = $t->get_dashboard_group_plan( $user_id_filter, $groups_per_page, $payment_method_filter, $filter );
+		$plan_data = $t->get_dashboard_group_plan( $user_id_filter, $groups_per_page, $payment_method_filter, $filter, $this->current_language_filter() );
 		$this->summary_counts  = $plan_data['totals'];
 		$this->all_items_count = (int) $plan_data['totals']['groups'];
 

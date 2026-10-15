@@ -232,9 +232,10 @@ class RMA_WC_Collective_Invoicing {
      * @param int    $groups_per_page Group cap per page.
      * @param string $payment_method_filter Payment filter.
      * @param string $search_filter Search term for customer/group matching.
-     * @return array
+     * @param string $language_filter Invoice language (language of the group's first order); '' for all.
+     * @return array Totals include `languages`: invoices per language before the language filter.
      */
-    public function get_dashboard_group_plan( array $customers = array(), int $groups_per_page = 20, string $payment_method_filter = '', string $search_filter = '' ): array {
+    public function get_dashboard_group_plan( array $customers = array(), int $groups_per_page = 20, string $payment_method_filter = '', string $search_filter = '', string $language_filter = '' ): array {
         $groups = $this->build_order_groups( $this->get_not_invoiced_order_rows( $customers, $payment_method_filter ) );
 
         if ( '' !== $search_filter ) {
@@ -255,6 +256,22 @@ class RMA_WC_Collective_Invoicing {
                     }
 
                     return str_contains( strtoupper( $search_string ), strtoupper( $search_filter ) );
+                }
+            );
+        }
+
+        $language_counts = array();
+        foreach ( $groups as $group ) {
+            $language                     = (string) ( $group['language'] ?? '' );
+            $language_counts[ $language ] = ( $language_counts[ $language ] ?? 0 ) + 1;
+        }
+        ksort( $language_counts );
+
+        if ( '' !== $language_filter ) {
+            $groups = array_filter(
+                $groups,
+                static function( array $group ) use ( $language_filter ): bool {
+                    return ( $group['language'] ?? '' ) === $language_filter;
                 }
             );
         }
@@ -281,6 +298,7 @@ class RMA_WC_Collective_Invoicing {
                 'orders'         => $total_orders,
                 'groups'         => count( $groups ),
                 'pages'          => $total_pages,
+                'languages'      => $language_counts,
             ),
         );
     }
@@ -697,7 +715,12 @@ class RMA_WC_Collective_Invoicing {
                 o.id AS order_id,
                 CAST(COALESCE(o.customer_id, 0) AS UNSIGNED) AS user_id,
                 COALESCE(o.payment_method, '') AS payment_method,
-                COALESCE(prices_include_tax.meta_value, '0') AS prices_include_tax
+                COALESCE(prices_include_tax.meta_value, '0') AS prices_include_tax,
+                (
+                    SELECT order_language.meta_value FROM {$orders_meta_table} order_language
+                    WHERE order_language.order_id = o.id AND order_language.meta_key = '" . RMA_WC_Order_Language::ORDER_LANG_META . "'
+                    LIMIT 1
+                ) AS order_language
             FROM {$orders_table} o
             LEFT JOIN {$orders_meta_table} rma_invoice
                 ON rma_invoice.order_id = o.id AND rma_invoice.meta_key = '_rma_invoice'
@@ -748,6 +771,7 @@ class RMA_WC_Collective_Invoicing {
                     'user_id'        => (int) $row['user_id'],
                     'payment_method' => (string) $row['payment_method'],
                     'tax_included'   => in_array( $tax_value, array( 'yes', '1', 'true' ), true ),
+                    'language'       => RMA_WC_Order_Language::language_from_meta( $row['order_language'] ),
                 );
             },
             $rows
@@ -795,9 +819,11 @@ class RMA_WC_Collective_Invoicing {
                     'tax_status'     => $tax_bucket,
                     'payment_method' => (string) $row['payment_method'],
                     'order_ids'      => array(),
+                    'languages'      => array(),
                 );
             }
             $logical_groups[ $key ]['order_ids'][] = (int) $row['order_id'];
+            $logical_groups[ $key ]['languages'][ (int) $row['order_id'] ] = (string) ( $row['language'] ?? '' );
         }
 
         $groups = array();
@@ -810,6 +836,7 @@ class RMA_WC_Collective_Invoicing {
                     'user_id'        => $logical['user_id'],
                     'tax_status'     => $logical['tax_status'],
                     'payment_method' => $logical['payment_method'],
+                    'language'       => $logical['languages'][ $first_order_id ] ?? '',
                     'order_ids'      => $chunk,
                     'order_count'    => count( $chunk ),
                     'page_number'    => 1,

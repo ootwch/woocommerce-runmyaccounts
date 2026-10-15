@@ -74,13 +74,6 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
                 add_action( 'woocommerce_order_actions', array( $this, 'order_meta_box_action' ) );
                 add_action( 'woocommerce_order_action_create_rma_invoice', array( $this, 'process_order_meta_box_action' ) );
 
-                // add invoice column to order page
-                add_filter( 'manage_edit-shop_order_columns', array( $this, 'add_column_to_order_table' ) ); // compatibility without HPOS
-                add_action( 'manage_shop_order_posts_custom_column', array( $this, 'add_value_to_order_table_row' ) );  // compatibility without HPOS
-
-	            add_filter( 'manage_woocommerce_page_wc-orders_columns', array( $this, 'add_column_to_order_table' ) ); // with HPOS
-	            add_action( 'manage_woocommerce_page_wc-orders_custom_column', array( $this, 'add_value_to_order_table_row_hpos' ), 10, 2 ); // with HPOS
-
 	            // add bulk action to order page
                 add_filter( 'bulk_actions-edit-shop_order', array( $this, 'create_invoice_bulk_actions_edit_product'), 20, 1 );
                 add_filter( 'handle_bulk_actions-edit-shop_order', array( $this, 'create_invoice_handle_bulk_action_edit_shop_order'), 10, 3 );
@@ -244,57 +237,6 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
             unset( $RMA_WC_API );
 
         }
-
-        /**
-         * Add column to order table
-         *
-         * @param $columns
-         *
-         * @return array
-         */
-        public function add_column_to_order_table( $columns ): array {
-
-			return RMA_WC_Frontend::array_insert($columns, 'order_total', 'rma_invoice', __('Invoice #', 'run-my-accounts-for-woocommerce'));
-
-        }
-        public function add_value_to_order_table_row( $column ) {
-
-            global $post;
-
-            switch ( $column ) {
-                case 'rma_invoice' :
-
-	                $order = wc_get_order( $post->ID );
-	                echo $order ? esc_html( $order->get_meta( '_rma_invoice', true ) ) : '';
-	                break;
-
-                default:
-            }
-
-
-        }
-
-	    /**
-	     * Add value to admin order table for HPOS
-	     *
-	     * @param $column
-	     * @param $wc_order_obj
-	     *
-	     * @return void
-	     */
-	    public function add_value_to_order_table_row_hpos( $column, $wc_order_obj ) {
-
-		    switch ( $column ) {
-			    case 'rma_invoice' :
-
-				    echo esc_html( $wc_order_obj->get_meta( '_rma_invoice', true ) );
-				    break;
-
-			    default:
-		    }
-
-
-	    }
 
         public function search_column( $meta_keys ) {
             $meta_keys[] = '_rma_invoice';

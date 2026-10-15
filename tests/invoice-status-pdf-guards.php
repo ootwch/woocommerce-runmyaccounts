@@ -159,6 +159,18 @@ rma_guard_same(
 	'non-RMA default SQL lists the Run my Accounts methods'
 );
 rma_guard_same( array( 'earlier', 'rma', 'sailcom-invoice' ), $params, 'params follow placeholder order after earlier params' );
+$params = array();
+rma_guard_same(
+	"CASE WHEN COALESCE(r.v, '') <> '' THEN r.v WHEN COALESCE(o.pm, '') = %s THEN %s WHEN COALESCE(o.pm, '') = %s THEN %s WHEN COALESCE(o.pm, '') = %s THEN %s ELSE %s END",
+	RMA_WC_API::invoice_route_sql_expression( 'o.pm', 'r.v', $params ),
+	'route SQL expression maps each payment method, then the default'
+);
+rma_guard_same(
+	array( 'sailcom-invoice', 'rma', 'sailcom-cash2organizer', 'organizer', 'sailcom-third-party', 'partner', 'unassigned' ),
+	$params,
+	'route SQL expression params'
+);
+rma_guard_same( array( 'rma', 'organizer', 'partner', 'unassigned' ), RMA_WC_API::invoice_routes(), 'known routes for the orders-list filter' );
 
 $GLOBALS['rma_guard_filters'] = array(
 	'rma_wc_payment_method_invoice_routes' => array( 'cod' => 'cash' ),

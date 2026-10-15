@@ -19,7 +19,7 @@ class RMA_WC_Order_Language {
 	/**
 	 * WCML order language meta key.
 	 */
-	private const ORDER_LANG_META = 'wpml_language';
+	public const ORDER_LANG_META = 'wpml_language';
 
 	/**
 	 * Read language code stored on the order (WCML), with sensible fallbacks.
@@ -28,7 +28,16 @@ class RMA_WC_Order_Language {
 	 * @return string Language code, e.g. en, de, fr.
 	 */
 	public static function get_order_language( WC_Order $order ): string {
-		$lang = $order->get_meta( self::ORDER_LANG_META );
+		return self::language_from_meta( $order->get_meta( self::ORDER_LANG_META ) );
+	}
+
+	/**
+	 * Language for a stored `wpml_language` value, with the same fallbacks as get_order_language().
+	 *
+	 * @param mixed $lang Stored meta value.
+	 * @return string
+	 */
+	public static function language_from_meta( $lang ): string {
 		if ( is_string( $lang ) && '' !== $lang ) {
 			return $lang;
 		}

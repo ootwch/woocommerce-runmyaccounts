@@ -586,6 +586,67 @@ if ( !class_exists('RMA_WC_API') ) {
 		}
 
 		/**
+		 * SQL expression (with placeholders) for the route of an order; mirrors order_invoice_route().
+		 *
+		 * @param string $payment_method_column Column holding the payment method.
+		 * @param string $override_column       Column or subquery holding the route override (NULL when absent).
+		 * @param array  $params                Prepared statement params (by reference).
+		 * @return string
+		 */
+		public static function invoice_route_sql_expression( string $payment_method_column, string $override_column, array &$params ): string {
+			$sql = "CASE WHEN COALESCE({$override_column}, '') <> '' THEN {$override_column}";
+			foreach ( self::payment_method_invoice_routes() as $payment_method => $route ) {
+				$sql     .= " WHEN COALESCE({$payment_method_column}, '') = %s THEN %s";
+				$params[] = (string) $payment_method;
+				$params[] = (string) $route;
+			}
+			$params[] = self::default_invoice_route();
+
+			return $sql . ' ELSE %s END';
+		}
+
+		/**
+		 * All routes orders can have through the payment-method map, the default and the plugin's own route.
+		 *
+		 * @return string[]
+		 */
+		public static function invoice_routes(): array {
+			$routes = array_merge(
+				array( self::INVOICE_ROUTE_RMA ),
+				array_values( self::payment_method_invoice_routes() ),
+				array( self::default_invoice_route() )
+			);
+
+			return array_values( array_unique( array_filter( array_map( 'strval', $routes ) ) ) );
+		}
+
+		/**
+		 * Label of a route for admin screens.
+		 *
+		 * @param string        $route Route.
+		 * @param WC_Order|null $order Order, for labels that depend on it (for example a partner name).
+		 * @return string
+		 */
+		public static function invoice_route_label( string $route, ?WC_Order $order = null ): string {
+			$label = self::INVOICE_ROUTE_RMA === $route
+				? __( 'Run my Accounts', 'rma-wc' )
+				/* translators: %s: invoicing route code */
+				: sprintf( __( 'Not invoiced through Run my Accounts (%s)', 'rma-wc' ), $route );
+
+			return (string) apply_filters( 'rma_wc_invoice_route_label', $label, $route, $order );
+		}
+
+		/**
+		 * Order meta holding the last invoice creation error, cleared when an invoice is created.
+		 */
+		public const INVOICE_ERROR_META = '_rma_invoice_error';
+
+		/**
+		 * Order meta holding when the last invoice creation failed (ISO 8601).
+		 */
+		public const INVOICE_ERROR_AT_META = '_rma_invoice_error_at';
+
+		/**
 		 * Nonce action for an invoice PDF download.
 		 *
 		 * @param string $invoice_number Normalized invoice number.
@@ -2206,6 +2267,8 @@ if ( !class_exists('RMA_WC_API') ) {
 					$note           = sprintf( esc_html_x( '%1$s %2$s created in Run my Accounts', 'Order Note', 'run-my-accounts-for-woocommerce'), $invoice_type, $invoice_number);
 					$order->add_order_note( $note );
 					$order->update_meta_data( '_rma_invoice', $invoice_number );
+					$order->delete_meta_data( self::INVOICE_ERROR_META );
+					$order->delete_meta_data( self::INVOICE_ERROR_AT_META );
 
 					$order->save();
 
@@ -2228,6 +2291,9 @@ if ( !class_exists('RMA_WC_API') ) {
 					$order          = wc_get_order(  $order_id );
 					$note           = sprintf( esc_html_x( 'Invoice creation failed: %s', 'Order Note', 'run-my-accounts-for-woocommerce'), $message );
 					$order->add_order_note( $note );
+					$order->update_meta_data( self::INVOICE_ERROR_META, wp_html_excerpt( (string) $message, 500, '…' ) );
+					$order->update_meta_data( self::INVOICE_ERROR_AT_META, current_datetime()->format( 'c' ) );
+					$order->save();
 
 					unset( $order );
 
