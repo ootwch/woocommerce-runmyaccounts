@@ -352,6 +352,111 @@ if ( !class_exists('RMA_WC_API') ) {
 		}
 
 		/**
+		 * Route value for orders that are invoiced through Run my Accounts.
+		 */
+		public const INVOICE_ROUTE_RMA = 'rma';
+
+		/**
+		 * Order meta that overrides the route derived from the payment method.
+		 */
+		public const INVOICE_ROUTE_META = '_rma_invoice_route';
+
+		/**
+		 * Invoicing route per payment method, for example `array( 'cod' => 'cash' )`.
+		 *
+		 * @return array<string,string>
+		 */
+		public static function payment_method_invoice_routes(): array {
+			$routes = apply_filters( 'rma_wc_payment_method_invoice_routes', array() );
+
+			return is_array( $routes ) ? array_map( 'strval', $routes ) : array();
+		}
+
+		/**
+		 * Route for payment methods not listed in payment_method_invoice_routes().
+		 *
+		 * @return string
+		 */
+		public static function default_invoice_route(): string {
+			$route = (string) apply_filters( 'rma_wc_default_invoice_route', self::INVOICE_ROUTE_RMA );
+
+			return '' === $route ? self::INVOICE_ROUTE_RMA : $route;
+		}
+
+		/**
+		 * Route derived from a payment method.
+		 *
+		 * @param string $payment_method Payment method ID.
+		 * @return string
+		 */
+		public static function payment_method_invoice_route( string $payment_method ): string {
+			$routes = self::payment_method_invoice_routes();
+
+			return $routes[ $payment_method ] ?? self::default_invoice_route();
+		}
+
+		/**
+		 * Route of an order: the override meta if set, otherwise derived from the payment method.
+		 *
+		 * @param WC_Order $order Order.
+		 * @return string
+		 */
+		public static function order_invoice_route( WC_Order $order ): string {
+			$override = (string) $order->get_meta( self::INVOICE_ROUTE_META, true );
+			if ( '' !== $override ) {
+				return $override;
+			}
+
+			return self::payment_method_invoice_route( (string) $order->get_payment_method() );
+		}
+
+		/**
+		 * Whether an order is invoiced through Run my Accounts.
+		 *
+		 * @param WC_Order $order Order.
+		 * @return bool
+		 */
+		public static function is_rma_invoice_route( WC_Order $order ): bool {
+			return self::INVOICE_ROUTE_RMA === self::order_invoice_route( $order );
+		}
+
+		/**
+		 * SQL condition (with placeholders) that matches orders on the Run my Accounts route.
+		 *
+		 * Mirrors order_invoice_route() so queries and single-order checks agree.
+		 *
+		 * @param string $payment_method_column Column holding the payment method.
+		 * @param string $override_column       Column holding the route override meta value (NULL when absent).
+		 * @param array  $params                Prepared statement params (by reference).
+		 * @return string
+		 */
+		public static function rma_invoice_route_sql( string $payment_method_column, string $override_column, array &$params ): string {
+			$routes      = self::payment_method_invoice_routes();
+			$default_rma = self::INVOICE_ROUTE_RMA === self::default_invoice_route();
+			$listed      = array_keys(
+				array_filter(
+					$routes,
+					static function ( string $route ) use ( $default_rma ): bool {
+						return $default_rma ? self::INVOICE_ROUTE_RMA !== $route : self::INVOICE_ROUTE_RMA === $route;
+					}
+				)
+			);
+
+			$params[] = self::INVOICE_ROUTE_RMA;
+
+			$payment_method = "COALESCE({$payment_method_column}, '')";
+			if ( empty( $listed ) ) {
+				$by_payment_method = $default_rma ? '1=1' : '1=0';
+			} else {
+				$placeholders      = implode( ', ', array_fill( 0, count( $listed ), '%s' ) );
+				$by_payment_method = $payment_method . ( $default_rma ? ' NOT IN ' : ' IN ' ) . "({$placeholders})";
+				$params            = array_merge( $params, array_map( 'strval', $listed ) );
+			}
+
+			return "( {$override_column} = %s OR ( COALESCE({$override_column}, '') = '' AND {$by_payment_method} ) )";
+		}
+
+		/**
 		 * Nonce action for an invoice PDF download.
 		 *
 		 * @param string $invoice_number Normalized invoice number.
@@ -1894,6 +1999,20 @@ if ( !class_exists('RMA_WC_API') ) {
 
 			// Continue only if an order_id is available and plugin function is activated
 			if( !$order_id || !$is_active ) return false;
+
+			$order = wc_get_order( $order_id );
+			if ( ! $order instanceof WC_Order || ! self::is_rma_invoice_route( $order ) ) {
+				self::write_log(
+					array(
+						'status'     => 'error',
+						'section_id' => $order_id,
+						'section'    => esc_html_x( 'Invoice', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+						'mode'       => self::rma_mode(),
+						'message'    => 'Order is not invoiced through Run my Accounts (route: ' . ( $order instanceof WC_Order ? self::order_invoice_route( $order ) : 'unknown' ) . ')',
+					)
+				);
+				return false;
+			}
 
 			$data = $this->get_invoice_values( $order_id );
 

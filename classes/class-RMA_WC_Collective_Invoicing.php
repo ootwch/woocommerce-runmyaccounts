@@ -703,10 +703,15 @@ class RMA_WC_Collective_Invoicing {
                 ON rma_invoice.order_id = o.id AND rma_invoice.meta_key = '_rma_invoice'
             LEFT JOIN {$orders_meta_table} prices_include_tax
                 ON prices_include_tax.order_id = o.id AND prices_include_tax.meta_key = '_prices_include_tax'
+            LEFT JOIN {$orders_meta_table} invoice_route
+                ON invoice_route.order_id = o.id AND invoice_route.meta_key = '" . RMA_WC_API::INVOICE_ROUTE_META . "'
             WHERE o.type = 'shop_order'
               AND o.status = 'wc-completed'
               AND rma_invoice.order_id IS NULL
         ";
+
+        // Only orders invoiced through Run my Accounts (cash to organizer, partner billing etc. are not).
+        $sql .= ' AND ' . RMA_WC_API::rma_invoice_route_sql( 'o.payment_method', 'invoice_route.meta_value', $params );
 
         if ( 0 < $invoice_from_date ) {
             $sql      .= ' AND o.date_completed_gmt >= %s';

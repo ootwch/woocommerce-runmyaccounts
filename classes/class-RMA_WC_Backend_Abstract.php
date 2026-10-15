@@ -222,7 +222,7 @@ if ( !class_exists('RMA_WC_Backend_Abstract') ) {
             global $theorder;
 
             // bail if the order has been paid for or invoice was already created
-            if ( $theorder->is_paid() || !empty( $theorder->get_meta( '_rma_invoice', true ) ) ){
+            if ( $theorder->is_paid() || !empty( $theorder->get_meta( '_rma_invoice', true ) ) || ! RMA_WC_API::is_rma_invoice_route( $theorder ) ){
                 return $actions;
             }
 

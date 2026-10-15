@@ -112,25 +112,26 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 	 */
 	public function process_bulk_action() {
 
-		// security check!
+		$action = $this->current_action();
 
-		if ( isset( $_POST['_wpnonce'] ) && ! empty( $_POST['_wpnonce'] ) ) {
-			$nonce = sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) );
-
-			$action = 'bulk-' . $this->_args['plural'];
-
-			if ( ! wp_verify_nonce( $nonce, $action ) ) {
-				wp_die( 'Nope! Security check failed!' );
-			}
+		if ( ! in_array( $action, array( 'create-invoice', 'confirm-invoice' ), true ) ) {
+			return;
 		}
 
-		$action = $this->current_action();
+		if ( ! $this->is_valid_dashboard_post() ) {
+			wp_die( esc_html__( 'Security check failed', 'rma-wc' ), '', array( 'response' => 403 ) );
+		}
+
+		if ( 'confirm-invoice' === $action && empty( $_POST['invoice_id'] ) ) {
+			add_action( 'admin_table_notices', array( $this, 'admin_notice_no_invoice_selected' ) );
+			return;
+		}
 
 		switch ( $action ) {
 
 			case 'create-invoice':
 				if ( ! current_user_can( 'manage_woocommerce' ) ) {
-					wp_die( 'Current user does not have the permission to create invoices.' );
+					wp_die( esc_html__( 'Current user does not have the permission to create invoices.', 'rma-wc' ), '', array( 'response' => 403 ) );
 				}
 
 				unset( $_GET['paged'] );
@@ -159,7 +160,7 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 			case 'confirm-invoice':
 				if ( ! current_user_can( 'manage_woocommerce' ) ) {
-					wp_die( 'Current user does not have the permission to create invoices.' );
+					wp_die( esc_html__( 'Current user does not have the permission to create invoices.', 'rma-wc' ), '', array( 'response' => 403 ) );
 				}
 
 				$invoice_title_en       = get_option( 'rma_invoice_title_en', __( 'SailCom Abrechnung', 'woocommerce-sailcom' ) );
@@ -178,15 +179,22 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 
 				foreach ( $this->items as $invoice_id => $current_invoice ) {
 
-					// Skip invoices that are not sailcom-invoice.
-					$payment_method = $current_invoice['data']['invoice']['paymentmethod'] ?? '';
-					if ( 'sailcom-invoice' !== $payment_method ) {
+					$order_ids = array_column( $current_invoice['data']['part'], 'order_id' );
+
+					// Skip groups that contain an order not invoiced through Run my Accounts.
+					$off_route = array_filter(
+						array_unique( array_map( 'intval', $order_ids ) ),
+						static function ( int $order_id ): bool {
+							$order = wc_get_order( $order_id );
+							return ! ( $order instanceof WC_Order ) || ! RMA_WC_API::is_rma_invoice_route( $order );
+						}
+					);
+					if ( empty( $order_ids ) || ! empty( $off_route ) ) {
 						$this->items[ $invoice_id ]['created_status'] = 'SKIPPED';
 						++$this->action_result_counts['skipped'];
 						continue;
 					}
 
-					$order_ids = array_column( $current_invoice['data']['part'], 'order_id' );
 					$lang      = 'en';
 					if ( ! empty( $order_ids ) ) {
 						$invoice_order = wc_get_order( (int) $order_ids[0] );
@@ -256,6 +264,31 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 				// do nothing or something else.
 				return;
 		}
+	}
+
+	/**
+	 * Whether this request is a POST of the dashboard form with a valid bulk nonce.
+	 *
+	 * @return bool
+	 */
+	private function is_valid_dashboard_post(): bool {
+		if ( 'POST' !== ( $_SERVER['REQUEST_METHOD'] ?? '' ) || empty( $_POST['_wpnonce'] ) ) {
+			return false;
+		}
+
+		return false !== wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ), 'bulk-' . $this->_args['plural'] );
+	}
+
+	/**
+	 * Notice when CONFIRM was submitted without any invoice selected.
+	 *
+	 * @return void
+	 */
+	public function admin_notice_no_invoice_selected() {
+		printf(
+			'<div class="notice notice-warning inline"><p>%s</p></div>',
+			esc_html__( 'No invoice was selected, so no invoice was created.', 'rma-wc' )
+		);
 	}
 
 	public function enqueue_admin_js( $hook ) {
@@ -639,9 +672,12 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 	 */
 	public function prepare_items() {
 
+		// Saved texts and the user filter only change through a valid dashboard POST.
+		$can_save = $this->is_valid_dashboard_post() && current_user_can( 'manage_woocommerce' );
+
 		$rma_options = array( 'invoice_title_en', 'invoice_description_en', 'invoice_footer_en' );
 		foreach ( $rma_options as $o ) {
-			if ( isset( $_POST[ $o ] ) ) {
+			if ( $can_save && isset( $_POST[ $o ] ) ) {
 				$$o = sanitize_text_field( wp_unslash( $_POST[ $o ] ) );
 				update_option( 'rma_' . $o, $$o );
 			} else {
@@ -650,11 +686,13 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 		}
 
 		// Filter by key list.
-		$user_list_filter_string = get_option( 'rma-invoice-user-list-filter', '' );
-		$user_list_filter_string = trim( sanitize_text_field( wp_unslash( $_POST['user-list-filter'] ?? $user_list_filter_string ) ) ); // phpcs:ignore WordPress.Security.NonceVerification.Missing
-		$user_list_filter_string = str_replace( ' ', ',', $user_list_filter_string );
-		$user_list_filter_string = str_replace( ',,', ',', $user_list_filter_string );
-		update_option( 'rma-invoice-user-list-filter', $user_list_filter_string );
+		$user_list_filter_string = (string) get_option( 'rma-invoice-user-list-filter', '' );
+		if ( $can_save && isset( $_POST['user-list-filter'] ) ) {
+			$user_list_filter_string = trim( sanitize_text_field( wp_unslash( $_POST['user-list-filter'] ) ) );
+			$user_list_filter_string = str_replace( ' ', ',', $user_list_filter_string );
+			$user_list_filter_string = str_replace( ',,', ',', $user_list_filter_string );
+			update_option( 'rma-invoice-user-list-filter', $user_list_filter_string );
+		}
 		$user_list_filter = empty( $user_list_filter_string ) ? array() : explode( ',', $user_list_filter_string );
 
 		if ( empty( $user_list_filter ) ) {

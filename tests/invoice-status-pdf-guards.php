@@ -15,6 +15,19 @@ if ( PHP_SAPI !== 'cli' ) {
 
 define( 'ABSPATH', __DIR__ );
 
+$GLOBALS['rma_guard_filters'] = array();
+
+/**
+ * Minimal apply_filters(): returns the value registered in $GLOBALS['rma_guard_filters'], if any.
+ *
+ * @param string $hook  Filter name.
+ * @param mixed  $value Default value.
+ * @return mixed
+ */
+function apply_filters( $hook, $value ) {
+	return array_key_exists( $hook, $GLOBALS['rma_guard_filters'] ) ? $GLOBALS['rma_guard_filters'][ $hook ] : $value;
+}
+
 require_once dirname( __DIR__ ) . '/classes/class-RMA_WC_API.php';
 
 /**
@@ -67,5 +80,46 @@ rma_guard_same( true, RMA_WC_API::body_is_pdf( "%PDF-1.4\n%..." ), 'PDF magic in
 rma_guard_same( false, RMA_WC_API::body_is_pdf( 'cURL error 28: Operation timed out after 120000 milliseconds' ), 'timeout text is not a PDF' );
 rma_guard_same( false, RMA_WC_API::body_is_pdf( '' ), 'empty body is not a PDF' );
 rma_guard_same( false, RMA_WC_API::body_is_pdf( false ), 'false is not a PDF' );
+
+// Invoicing routes: plugin default sends everything to Run my Accounts.
+rma_guard_same( 'rma', RMA_WC_API::payment_method_invoice_route( 'cod' ), 'default route is Run my Accounts' );
+$params = array();
+rma_guard_same(
+	"( r.v = %s OR ( COALESCE(r.v, '') = '' AND 1=1 ) )",
+	RMA_WC_API::rma_invoice_route_sql( 'o.pm', 'r.v', $params ),
+	'default SQL accepts every payment method without an override'
+);
+rma_guard_same( array( 'rma' ), $params, 'default SQL params' );
+
+// SailCom setup: only sailcom-invoice is invoiced through Run my Accounts.
+$GLOBALS['rma_guard_filters'] = array(
+	'rma_wc_payment_method_invoice_routes' => array(
+		'sailcom-invoice'        => 'rma',
+		'sailcom-cash2organizer' => 'organizer',
+		'sailcom-third-party'    => 'partner',
+	),
+	'rma_wc_default_invoice_route'         => 'unassigned',
+);
+rma_guard_same( 'rma', RMA_WC_API::payment_method_invoice_route( 'sailcom-invoice' ), 'mapped Run my Accounts method' );
+rma_guard_same( 'partner', RMA_WC_API::payment_method_invoice_route( 'sailcom-third-party' ), 'mapped partner method' );
+rma_guard_same( 'unassigned', RMA_WC_API::payment_method_invoice_route( '' ), 'missing payment method uses the default route' );
+$params = array( 'earlier' );
+rma_guard_same(
+	"( r.v = %s OR ( COALESCE(r.v, '') = '' AND COALESCE(o.pm, '') IN (%s) ) )",
+	RMA_WC_API::rma_invoice_route_sql( 'o.pm', 'r.v', $params ),
+	'non-RMA default SQL lists the Run my Accounts methods'
+);
+rma_guard_same( array( 'earlier', 'rma', 'sailcom-invoice' ), $params, 'params follow placeholder order after earlier params' );
+
+$GLOBALS['rma_guard_filters'] = array(
+	'rma_wc_payment_method_invoice_routes' => array( 'cod' => 'cash' ),
+);
+$params = array();
+rma_guard_same(
+	"( r.v = %s OR ( COALESCE(r.v, '') = '' AND COALESCE(o.pm, '') NOT IN (%s) ) )",
+	RMA_WC_API::rma_invoice_route_sql( 'o.pm', 'r.v', $params ),
+	'RMA default SQL excludes the methods billed elsewhere'
+);
+rma_guard_same( array( 'rma', 'cod' ), $params, 'excluded method params' );
 
 echo "OK\n";
