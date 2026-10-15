@@ -43,6 +43,30 @@ function rma_declare_hpos() : void{
 add_action( 'before_woocommerce_init', 'rma_declare_hpos');
 
 /**
+ * Scheduled events of this plugin; the classes reschedule them on `init` while active.
+ *
+ * @return string[]
+ */
+function rma_wc_cron_hooks(): array {
+	return array( 'run_my_accounts_collective_invoice', 'update_invoice_status', 'update_invoice_status_continue' );
+}
+
+/**
+ * Stop the billing and status sync jobs, which would otherwise keep firing without the plugin loaded.
+ *
+ * Registered here, not in rma-wc-main.php: WordPress only matches the main plugin file,
+ * and that file is not loaded during the deactivation request.
+ *
+ * @return void
+ */
+function rma_wc_deactivate(): void {
+	foreach ( rma_wc_cron_hooks() as $hook ) {
+		wp_clear_scheduled_hook( $hook );
+	}
+}
+register_deactivation_hook( __FILE__, 'rma_wc_deactivate' );
+
+/**
  * Load the main file only if WooCommerce is full loaded
  *
  * @return void

@@ -41,11 +41,10 @@ if (!class_exists('RMA_WC_Backend')) {
         }
 
         /**
-         * Deactivate - is triggered when register_deactivation_hook() is called, but we do this in the rma-wc.php
+         * Deactivate - the deactivation hook is rma_wc_deactivate() in rma-wc.php.
          */
         static function deactivate() {
-            wp_clear_scheduled_hook( 'run_my_accounts_collective_invoice' );
-            wp_clear_scheduled_hook( 'update_invoice_status' );
+            rma_wc_deactivate();
         }
 
         /**

@@ -1081,7 +1081,7 @@ if ( !class_exists('RMA_WC_API') ) {
          * @return string
          */
         public static function customer_invoices_transient_key( $rma_customer_id ) {
-            return 'invoices_' . self::normalize_customer_number( $rma_customer_id );
+            return 'rma_wc_invoices_' . self::normalize_customer_number( $rma_customer_id );
         }
 
         /**
