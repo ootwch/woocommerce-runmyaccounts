@@ -330,6 +330,26 @@ if ( !class_exists('RMA_WC_API') ) {
 		}
 
 		/**
+		 * XML element whose value is added as text, so "&" and "<" are escaped.
+		 *
+		 * DOMDocument::createElement( $name, $value ) does not escape "&": the value
+		 * is cut off at a bare ampersand. Values are decoded once first because
+		 * WordPress stores some names with entities (for example "&amp;").
+		 *
+		 * @param DOMDocument $doc   Document.
+		 * @param string      $name  Element name.
+		 * @param mixed       $value Scalar value; anything else becomes an empty element.
+		 * @return DOMElement
+		 */
+		public static function xml_text_element( DOMDocument $doc, $name, $value ) {
+			$element = $doc->createElement( $name );
+			$text    = is_scalar( $value ) ? html_entity_decode( (string) $value, ENT_QUOTES | ENT_HTML5, 'UTF-8' ) : '';
+			$element->appendChild( $doc->createTextNode( $text ) );
+
+			return $element;
+		}
+
+		/**
 		 * `from` and optional `to` query arguments for the list endpoints.
 		 *
 		 * @param mixed $from YYYY-MM-DD.
@@ -845,9 +865,10 @@ if ( !class_exists('RMA_WC_API') ) {
          * @param mixed  $rma_customer_id customernumber.
          * @param string $from YYYY-MM-DD.
          * @param mixed  $to YYYY-MM-DD.
+         * @param int    $timeout Request timeout in seconds; 0 uses the default API timeout.
          * @return mixed .
          */
-        public function get_customer_invoices( $rma_customer_id = null, $from = '1900-01-01', $to = null ) {
+        public function get_customer_invoices( $rma_customer_id = null, $from = '1900-01-01', $to = null, $timeout = 0 ) {
             if ( ! RMA_MANDANT || ! RMA_APIKEY ) {
 
                 $log_values = array(
@@ -876,8 +897,9 @@ if ( !class_exists('RMA_WC_API') ) {
                 }
                 $query_args['customer_number'] = rawurlencode( $customer_number );
             }
-            $url      = add_query_arg( $query_args, self::get_caller_url() . RMA_MANDANT . '/invoices' );
-            $response = wp_remote_get( $url, self::get_rma_http_args( self::get_authenticated_http_args() ) );
+            $url       = add_query_arg( $query_args, self::get_caller_url() . RMA_MANDANT . '/invoices' );
+            $http_args = $timeout > 0 ? array( 'timeout' => (int) $timeout ) : array();
+            $response  = wp_remote_get( $url, self::get_rma_http_args( self::get_authenticated_http_args( $http_args ) ) );
 
             // Check response code
             if ( 200 <> wp_remote_retrieve_response_code( $response ) ) {
@@ -2074,8 +2096,9 @@ if ( !class_exists('RMA_WC_API') ) {
 
 			$order = wc_get_order( $order_id );
 			if ( ! $order instanceof WC_Order || ! self::is_rma_invoice_route( $order ) ) {
+				// Expected for organizer, partner and similar orders: info, so no error email.
 				$log_values = array(
-					'status'     => 'error',
+					'status'     => 'skipped',
 					'section_id' => $order_id,
 					'section'    => esc_html_x( 'Invoice', 'Log Section', 'run-my-accounts-for-woocommerce' ),
 					'mode'       => self::rma_mode(),
@@ -2114,7 +2137,7 @@ if ( !class_exists('RMA_WC_API') ) {
 			$root = $xml->appendChild( $xml->createElement("invoice") );
 			foreach( $data[ 'invoice' ] as $key => $value ) {
 				if ( ! empty( $key ) )
-					$root->appendChild( $xml->createElement( $key, $value ) );
+					$root->appendChild( self::xml_text_element( $xml, $key, $value ) );
 			}
 
 			$tab_invoice = $root->appendChild($xml->createElement('parts'));
@@ -2125,7 +2148,7 @@ if ( !class_exists('RMA_WC_API') ) {
 					$tab_part = $tab_invoice->appendChild($xml->createElement('part'));
 
 					foreach( $part as $key=>$value ){
-						$tab_part->appendChild($xml->createElement($key, $value));
+						$tab_part->appendChild( self::xml_text_element( $xml, $key, $value ) );
 					}
 				}
 			}
@@ -2474,6 +2497,13 @@ if ( !class_exists('RMA_WC_API') ) {
 		 * @return bool
 		 */
 		public static function send_log_email( &$values ): bool {
+
+			// During an outage every failed call logs an error; send one email per section and hour.
+			$throttle_key = 'rma_wc_error_email_' . md5( (string) ( $values['section'] ?? '' ) );
+			if ( false !== get_transient( $throttle_key ) ) {
+				return false;
+			}
+			set_transient( $throttle_key, 1, HOUR_IN_SECONDS );
 
 			ob_start();
 			include( plugin_dir_path( __FILE__ ) . '../templates/email/error-email-template.php');

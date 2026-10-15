@@ -218,9 +218,9 @@ class RMA_WC_Collective_Invoice_Table extends WP_List_Table {
 						$invoice_footer = $invoice_footer_en;
 					}
 
-					$current_invoice['data']['invoice']['description']  = esc_xml( $invoice_title );
-					$current_invoice['data']['invoice']['text_field_1'] = esc_xml( $invoice_description );
-					$current_invoice['data']['invoice']['notes']        = esc_xml( $invoice_footer );
+					$current_invoice['data']['invoice']['description']  = $invoice_title;
+					$current_invoice['data']['invoice']['text_field_1'] = $invoice_description;
+					$current_invoice['data']['invoice']['notes']        = $invoice_footer;
 
 					// $result = false;
 					RMA_WC_API::clear_last_invoice_error_message();

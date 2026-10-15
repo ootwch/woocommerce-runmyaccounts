@@ -100,6 +100,21 @@ rma_guard_same( array( 'from' => '2026-01-01', 'to' => '2026-01-31' ), RMA_WC_AP
 rma_guard_same( false, RMA_WC_API::date_range_query_args( 'yesterday' ), 'invalid from date' );
 rma_guard_same( false, RMA_WC_API::date_range_query_args( '2026-01-01', '31.01.2026' ), 'invalid to date' );
 
+if ( class_exists( 'DOMDocument' ) ) {
+	$xml_doc = new DOMDocument( '1.0', 'UTF-8' );
+	$xml_out = function ( $value ) use ( $xml_doc ) {
+		return $xml_doc->saveXML( RMA_WC_API::xml_text_element( $xml_doc, 'v', $value ) );
+	};
+	rma_guard_same( '<v>Müller &amp; Co</v>', $xml_out( 'Müller & Co' ), 'ampersand is escaped, not cut off' );
+	rma_guard_same( '<v>Segeln &amp; Kurse</v>', $xml_out( 'Segeln &amp; Kurse' ), 'stored entity is not double-escaped' );
+	rma_guard_same( '<v>Kurs – Herbst</v>', $xml_out( 'Kurs &#8211; Herbst' ), 'numeric entity is decoded' );
+	rma_guard_same( '<v>&lt;b&gt;x&lt;/b&gt;</v>', $xml_out( '<b>x</b>' ), 'markup is escaped as text' );
+	rma_guard_same( '<v>12.5</v>', $xml_out( 12.5 ), 'numbers are kept' );
+	rma_guard_same( '<v></v>', $xml_out( array( 'x' ) ), 'non-scalar becomes empty' );
+} else {
+	echo "SKIP: XML element checks need the PHP DOM extension (php-xml).\n";
+}
+
 // Invoicing routes: plugin default sends everything to Run my Accounts.
 rma_guard_same( 'rma', RMA_WC_API::payment_method_invoice_route( 'cod' ), 'default route is Run my Accounts' );
 $params = array();

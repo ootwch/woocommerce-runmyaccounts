@@ -111,15 +111,27 @@ class RMA_WC_Invoice {
 
 			if ( ! empty( $rma_customer_id ) ) {
 
-				$invoices = get_transient( RMA_WC_API::customer_invoices_transient_key( $rma_customer_id ) );
+				$transient_key   = RMA_WC_API::customer_invoices_transient_key( $rma_customer_id );
+				$unavailable_key = $transient_key . '_unavailable';
+
+				$invoices = get_transient( $transient_key );
 				if ( false === $invoices ) {
-					$RMA_WC_API = new RMA_WC_API();
-					$invoices   = $RMA_WC_API->get_customer_invoices( $rma_customer_id );
-					unset( $RMA_WC_API );
-					if ( false === $invoices ) {
+					// This runs while the page renders: a slow or failing Run my Accounts must not hold up every page view.
+					if ( false !== get_transient( $unavailable_key ) ) {
 						return;
 					}
-					set_transient( RMA_WC_API::customer_invoices_transient_key( $rma_customer_id ), $invoices, HOUR_IN_SECONDS );
+					$RMA_WC_API = new RMA_WC_API();
+					$invoices   = $RMA_WC_API->get_customer_invoices( $rma_customer_id, '1900-01-01', null, 5 );
+					unset( $RMA_WC_API );
+					if ( false === $invoices ) {
+						set_transient( $unavailable_key, 1, 10 * MINUTE_IN_SECONDS );
+						return;
+					}
+					set_transient( $transient_key, $invoices, HOUR_IN_SECONDS );
+				}
+
+				if ( empty( $invoices['invoice'] ) || ! is_array( $invoices['invoice'] ) ) {
+					return;
 				}
 
 				$overdue_invoices = array_filter(

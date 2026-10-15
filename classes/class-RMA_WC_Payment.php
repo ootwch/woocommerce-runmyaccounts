@@ -18,49 +18,8 @@ class RMA_WC_Payment {
         // read rma settings
         $this->settings = get_option('wc_rma_settings');
 
-        // define constants only if they are not defined yet
-        if ( !defined( 'RMA_MANDANT' ) )
-            self::define_constants();
-
-    }
-
-    /**
-     * define default constants
-     *
-     * @since 1.6.0
-     */
-    private function define_constants() {
-        //ToDO: create a central definition which can be used by all classes
-
-        // check if operation mode is set and is live
-        if( isset( $this->settings['rma-mode'] ) && 'live' == $this->settings['rma-mode'] ) {
-
-            // define constants with live values
-            DEFINE( 'RMA_MANDANT', ( isset( $this->settings['rma-live-client'] ) ? $this->settings['rma-live-client'] : '' ) );
-            DEFINE( 'RMA_APIKEY', ( isset( $this->settings['rma-live-apikey'] ) ? $this->settings['rma-live-apikey'] : '' ) );
-            DEFINE( 'RMA_CALLERSANDBOX', FALSE );
-
-        }
-        else {
-
-            // set default operation mode to test
-            DEFINE( 'RMA_MANDANT', ( isset( $this->settings['rma-test-client'] ) ? $this->settings['rma-test-client'] : '' ) );
-            DEFINE( 'RMA_APIKEY', ( isset( $this->settings['rma-test-apikey'] ) ? $this->settings['rma-test-apikey'] : '' ) );
-            DEFINE( 'RMA_CALLERSANDBOX', TRUE );
-
-        }
-
-        // if rma-loglevel ist not set, LOGLEVEL is set to error by default
-        if( isset( $this->settings['rma-loglevel'] ) ) {
-            if( 'error' == $this->settings['rma-loglevel']  || empty( $this->settings['rma-loglevel'] ) ) {
-                DEFINE( 'LOGLEVEL' , 'error' );
-            }
-            elseif ( $this->settings['rma-loglevel'] == 'complete' ) {
-                DEFINE( 'LOGLEVEL' , 'complete' );
-            }
-        } else {
-            DEFINE( 'LOGLEVEL' , 'error' );
-        }
+        // RMA_WC_API defines the credentials (including wp-config.php overrides), so payments use the same client as invoices.
+        new RMA_WC_API();
 
     }
 
@@ -83,8 +42,9 @@ class RMA_WC_Payment {
 	    $order = wc_get_order( $this->order_id );
 	    $this->invoice = trim( (string) $order->get_meta('_rma_invoice', true ) );
         if ( '' === RMA_WC_API::normalize_invoice_number( $this->invoice ) ) {
+            // Only an order that should have a Run my Accounts invoice is an error (and triggers the error email).
             $log_values = array(
-                'status'     => 'error',
+                'status'     => ( $order instanceof WC_Order && RMA_WC_API::is_rma_invoice_route( $order ) ) ? 'error' : 'skipped',
                 'section_id' => $this->order_id,
                 'section'    => esc_html_x('Payment', 'Log Section', 'run-my-accounts-for-woocommerce'),
                 'mode'       => RMA_WC_API::rma_mode(),
@@ -104,7 +64,7 @@ class RMA_WC_Payment {
         $root = $xml->appendChild( $xml->createElement('payment' ) );
         foreach( $data['payment'] as $key => $value ) {
             if ( ! empty( $key ) )
-                $root->appendChild( $xml->createElement( $key, $value ) );
+                $root->appendChild( RMA_WC_API::xml_text_element( $xml, $key, $value ) );
         }
 
         // make the output pretty
