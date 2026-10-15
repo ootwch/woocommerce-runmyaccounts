@@ -138,6 +138,9 @@ class RMA_WC_Invoicing_Column {
 				'detail' => $invoice,
 				'title'  => '',
 			);
+			if ( 'yes' === $order->get_meta( RMA_WC_API::INVOICE_MANUAL_META, true ) ) {
+				$state['detail'] .= ' · ' . __( 'entered by hand', 'rma-wc' );
+			}
 
 			$changed_at = '' === $status ? false : strtotime( (string) $order->get_meta( '_rma_invoice_status_timestamp', true ) );
 			if ( false !== $changed_at && $changed_at > 0 ) {

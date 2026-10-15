@@ -170,7 +170,7 @@ rma_guard_same(
 	$params,
 	'route SQL expression params'
 );
-rma_guard_same( array( 'rma', 'organizer', 'partner', 'unassigned' ), RMA_WC_API::invoice_routes(), 'known routes for the orders-list filter' );
+rma_guard_same( array( 'rma', 'organizer', 'partner', 'unassigned', 'not-billable' ), RMA_WC_API::invoice_routes(), 'known routes for the orders-list filter' );
 
 $GLOBALS['rma_guard_filters'] = array(
 	'rma_wc_payment_method_invoice_routes' => array( 'cod' => 'cash' ),

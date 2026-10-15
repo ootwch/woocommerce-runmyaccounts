@@ -16,6 +16,7 @@ include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Payment.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Rental_And_Booking.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Invoice.php';
 include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Invoicing_Column.php';
+include_once RMA_WC_PFAD . 'classes/class-RMA_WC_Invoicing_Meta_Box.php';
 
 // LOAD BACKEND ////////////////////////////////////////////////////////////////
 
@@ -27,6 +28,7 @@ if ( is_admin() ) {
 	$my_settings_page = new RMA_WC_Settings_Page();
 	new RMA_WC_Admin_Collective_Invoice();
 	new RMA_WC_Invoicing_Column();
+	new RMA_WC_Invoicing_Meta_Box();
 
 	// delete table from deprecated log, which is moved to WC_LOG
 	if( get_option( 'wc_rma_db_version' ) ) {

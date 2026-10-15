@@ -486,9 +486,26 @@ if ( !class_exists('RMA_WC_API') ) {
 		public const INVOICE_ROUTE_RMA = 'rma';
 
 		/**
+		 * Route for orders that are not billed at all; only set as a manual override.
+		 */
+		public const INVOICE_ROUTE_NOT_BILLABLE = 'not-billable';
+
+		/**
 		 * Order meta that overrides the route derived from the payment method.
 		 */
 		public const INVOICE_ROUTE_META = '_rma_invoice_route';
+
+		/**
+		 * Order meta with the reason, user ID and time (ISO 8601) of the last manual invoicing change.
+		 */
+		public const INVOICE_ROUTE_REASON_META = '_rma_invoice_route_reason';
+		public const INVOICE_ROUTE_BY_META     = '_rma_invoice_route_by';
+		public const INVOICE_ROUTE_AT_META     = '_rma_invoice_route_at';
+
+		/**
+		 * Order meta set to 'yes' when the invoice number was entered by hand instead of created by the plugin.
+		 */
+		public const INVOICE_MANUAL_META = '_rma_invoice_manual';
 
 		/**
 		 * Invoicing route per payment method, for example `array( 'cod' => 'cash' )`.
@@ -606,7 +623,7 @@ if ( !class_exists('RMA_WC_API') ) {
 		}
 
 		/**
-		 * All routes orders can have through the payment-method map, the default and the plugin's own route.
+		 * All routes orders can have: the plugin's own route, the payment-method map, the default and "not billable".
 		 *
 		 * @return string[]
 		 */
@@ -614,7 +631,7 @@ if ( !class_exists('RMA_WC_API') ) {
 			$routes = array_merge(
 				array( self::INVOICE_ROUTE_RMA ),
 				array_values( self::payment_method_invoice_routes() ),
-				array( self::default_invoice_route() )
+				array( self::default_invoice_route(), self::INVOICE_ROUTE_NOT_BILLABLE )
 			);
 
 			return array_values( array_unique( array_filter( array_map( 'strval', $routes ) ) ) );
@@ -628,10 +645,14 @@ if ( !class_exists('RMA_WC_API') ) {
 		 * @return string
 		 */
 		public static function invoice_route_label( string $route, ?WC_Order $order = null ): string {
-			$label = self::INVOICE_ROUTE_RMA === $route
-				? __( 'Run my Accounts', 'rma-wc' )
+			if ( self::INVOICE_ROUTE_RMA === $route ) {
+				$label = __( 'Run my Accounts', 'rma-wc' );
+			} elseif ( self::INVOICE_ROUTE_NOT_BILLABLE === $route ) {
+				$label = __( 'Not billable', 'rma-wc' );
+			} else {
 				/* translators: %s: invoicing route code */
-				: sprintf( __( 'Not invoiced through Run my Accounts (%s)', 'rma-wc' ), $route );
+				$label = sprintf( __( 'Not invoiced through Run my Accounts (%s)', 'rma-wc' ), $route );
+			}
 
 			return (string) apply_filters( 'rma_wc_invoice_route_label', $label, $route, $order );
 		}
@@ -1156,12 +1177,31 @@ if ( !class_exists('RMA_WC_API') ) {
                 return false;
             }
 
-            // The customer's invoice list (filtered by customer_number in Run my Accounts) already proves ownership.
-            if ( ! self::cached_customer_has_invoice( $rma_user_current, $requested_rma_invoice_number ) && ! $this->remote_customer_has_invoice( $rma_user_current, $requested_rma_invoice_number ) ) {
+            if ( ! $this->customer_has_invoice( $rma_user_current, $requested_rma_invoice_number ) ) {
                 return false;
             }
 
             return $this->fetch_invoice_pdf_body( $requested_rma_invoice_number );
+        }
+
+        /**
+         * Whether the invoice belongs to the customer in Run my Accounts.
+         *
+         * @param string $rma_customer_id Customer number.
+         * @param string $invoice_number  Invoice number.
+         * @param string $section         Log section for failures.
+         * @return bool
+         */
+        public function customer_has_invoice( $rma_customer_id, $invoice_number, $section = '' ) {
+            $rma_customer_id = self::normalize_customer_number( $rma_customer_id );
+            $invoice_number  = self::normalize_invoice_number( $invoice_number );
+            if ( '' === $rma_customer_id || '' === $invoice_number || ! RMA_MANDANT || ! RMA_APIKEY ) {
+                return false;
+            }
+
+            // The customer's invoice list (filtered by customer_number in Run my Accounts) already proves ownership.
+            return self::cached_customer_has_invoice( $rma_customer_id, $invoice_number )
+                || $this->remote_customer_has_invoice( $rma_customer_id, $invoice_number, $section );
         }
 
         /**
@@ -1224,16 +1264,20 @@ if ( !class_exists('RMA_WC_API') ) {
          *
          * @param string $rma_customer_id Customer number.
          * @param string $invoice_number  Normalized invoice number.
+         * @param string $section         Log section for failures; defaults to the PDF download.
          * @return bool
          */
-        private function remote_customer_has_invoice( $rma_customer_id, $invoice_number ) {
+        private function remote_customer_has_invoice( $rma_customer_id, $invoice_number, $section = '' ) {
+            if ( '' === $section ) {
+                $section = esc_html_x( 'Get Invoice PDF', 'Log Section', 'run-my-accounts-for-woocommerce' );
+            }
             $url          = self::get_caller_url() . RMA_MANDANT . '/invoices/' . rawurlencode( $invoice_number );
             $xml_response = wp_remote_get( $url, self::get_rma_http_args( self::get_authenticated_http_args( array( 'headers' => array( 'Accept' => 'application/xml' ) ) ) ) );
             if ( is_wp_error( $xml_response ) ) {
                 $log_values = array(
                     'status'     => 'error',
                     'section_id' => '',
-                    'section'    => esc_html_x( 'Get Invoice PDF', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'section'    => $section,
                     'mode'       => self::rma_mode(),
                     'message'    => $xml_response->get_error_message(),
                 );
@@ -1251,7 +1295,7 @@ if ( !class_exists('RMA_WC_API') ) {
                 $log_values = array(
                     'status'     => 'error',
                     'section_id' => '',
-                    'section'    => esc_html_x( 'Get Invoice PDF', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'section'    => $section,
                     'mode'       => self::rma_mode(),
                     'message'    => $message,
                 );
@@ -1268,9 +1312,9 @@ if ( !class_exists('RMA_WC_API') ) {
                 $log_values = array(
                     'status'     => 'error',
                     'section_id' => '',
-                    'section'    => esc_html_x( 'Get Invoice PDF', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'section'    => $section,
                     'mode'       => self::rma_mode(),
-                    'message'    => 'Download failed / invoice response was not valid XML',
+                    'message'    => 'Invoice response was not valid XML',
                 );
 
                 self::write_log( $log_values );
@@ -1284,9 +1328,9 @@ if ( !class_exists('RMA_WC_API') ) {
                 $log_values = array(
                     'status'     => 'error',
                     'section_id' => '',
-                    'section'    => esc_html_x( 'Get Invoice PDF', 'Log Section', 'run-my-accounts-for-woocommerce' ),
+                    'section'    => $section,
                     'mode'       => self::rma_mode(),
-                    'message'    => 'Download failed / invoice does not exist for this user',
+                    'message'    => 'Invoice does not exist for this customer',
                 );
 
                 self::write_log( $log_values );
