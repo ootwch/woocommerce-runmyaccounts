@@ -18,49 +18,8 @@ class RMA_WC_Payment {
         // read rma settings
         $this->settings = get_option('wc_rma_settings');
 
-        // define constants only if they are not defined yet
-        if ( !defined( 'RMA_MANDANT' ) )
-            self::define_constants();
-
-    }
-
-    /**
-     * define default constants
-     *
-     * @since 1.6.0
-     */
-    private function define_constants() {
-        //ToDO: create a central definition which can be used by all classes
-
-        // check if operation mode is set and is live
-        if( isset( $this->settings['rma-mode'] ) && 'live' == $this->settings['rma-mode'] ) {
-
-            // define constants with live values
-            DEFINE( 'RMA_MANDANT', ( isset( $this->settings['rma-live-client'] ) ? $this->settings['rma-live-client'] : '' ) );
-            DEFINE( 'RMA_APIKEY', ( isset( $this->settings['rma-live-apikey'] ) ? $this->settings['rma-live-apikey'] : '' ) );
-            DEFINE( 'RMA_CALLERSANDBOX', FALSE );
-
-        }
-        else {
-
-            // set default operation mode to test
-            DEFINE( 'RMA_MANDANT', ( isset( $this->settings['rma-test-client'] ) ? $this->settings['rma-test-client'] : '' ) );
-            DEFINE( 'RMA_APIKEY', ( isset( $this->settings['rma-test-apikey'] ) ? $this->settings['rma-test-apikey'] : '' ) );
-            DEFINE( 'RMA_CALLERSANDBOX', TRUE );
-
-        }
-
-        // if rma-loglevel ist not set, LOGLEVEL is set to error by default
-        if( isset( $this->settings['rma-loglevel'] ) ) {
-            if( 'error' == $this->settings['rma-loglevel']  || empty( $this->settings['rma-loglevel'] ) ) {
-                DEFINE( 'LOGLEVEL' , 'error' );
-            }
-            elseif ( $this->settings['rma-loglevel'] == 'complete' ) {
-                DEFINE( 'LOGLEVEL' , 'complete' );
-            }
-        } else {
-            DEFINE( 'LOGLEVEL' , 'error' );
-        }
+        // RMA_WC_API defines the credentials (including wp-config.php overrides), so payments use the same client as invoices.
+        new RMA_WC_API();
 
     }
 
@@ -80,10 +39,23 @@ class RMA_WC_Payment {
         if( !$this->order_id ) return false;
 
         // get the Run My Accounts invoice number
-        $this->invoice = get_post_meta( $this->order_id, '_rma_invoice', true );
+	    $order = wc_get_order( $this->order_id );
+	    $this->invoice = trim( (string) $order->get_meta('_rma_invoice', true ) );
+        if ( '' === RMA_WC_API::normalize_invoice_number( $this->invoice ) ) {
+            // Only an order that should have a Run my Accounts invoice is an error (and triggers the error email).
+            $log_values = array(
+                'status'     => ( $order instanceof WC_Order && RMA_WC_API::is_rma_invoice_route( $order ) ) ? 'error' : 'skipped',
+                'section_id' => $this->order_id,
+                'section'    => esc_html_x('Payment', 'Log Section', 'run-my-accounts-for-woocommerce'),
+                'mode'       => RMA_WC_API::rma_mode(),
+                'message'    => 'Payment not booked: the order has no usable Run my Accounts invoice number',
+            );
+            RMA_WC_API::write_log( $log_values );
+            return false;
+        }
 
         $data = self::get_payment_details();
-        $url  = RMA_WC_API::get_caller_url() . RMA_MANDANT . '/invoices/' . $this->invoice . '/payments?api_key=' . RMA_APIKEY;
+        $url  = RMA_WC_API::get_caller_url() . RMA_MANDANT . '/invoices/' . rawurlencode( $this->invoice ) . '/payments';
 
         //create the xml document
         $xml  = new DOMDocument('1.0', 'UTF-8');
@@ -92,7 +64,7 @@ class RMA_WC_Payment {
         $root = $xml->appendChild( $xml->createElement('payment' ) );
         foreach( $data['payment'] as $key => $value ) {
             if ( ! empty( $key ) )
-                $root->appendChild( $xml->createElement( $key, $value ) );
+                $root->appendChild( RMA_WC_API::xml_text_element( $xml, $key, $value ) );
         }
 
         // make the output pretty
@@ -110,7 +82,7 @@ class RMA_WC_Payment {
 
             $status         = 'paid';
 
-            $message        = sprintf( esc_html_x( 'Payment %s %s booked on account %s', 'Order Note', 'rma-wc'), $data['payment']['amount_paid'], $data['payment']['currency'], $data['payment']['payment_accno'] );
+            $message        = sprintf( esc_html_x( 'Payment %1$s %2$s booked on account %3$s', 'Order Note', 'run-my-accounts-for-woocommerce'), $data['payment']['amount_paid'], $data['payment']['currency'], $data['payment']['payment_accno'] );
 
             // add order note
             $order          = wc_get_order(  $this->order_id );
@@ -129,13 +101,13 @@ class RMA_WC_Payment {
         if ( ( 'error' == LOGLEVEL && 'error' == $status ) || 'complete' == LOGLEVEL ) {
 
             $log_values = array(
-                'status' => $status,
+                'status'     => $status,
                 'section_id' => $this->order_id,
-                'section' => esc_html_x('Payment', 'Log Section', 'rma-wc'),
-                'mode' => (new RMA_WC_API)->rma_mode(),
-                'message' => $message );
+                'section'    => esc_html_x('Payment', 'Log Section', 'run-my-accounts-for-woocommerce'),
+                'mode'       => RMA_WC_API::rma_mode(),
+                'message'    => $message );
 
-            (new RMA_WC_API)->write_log($log_values);
+            RMA_WC_API::write_log( $log_values );
 
         }
 
@@ -157,7 +129,7 @@ class RMA_WC_Payment {
 
         if ( isset( $this->settings[ $name ] ) && 1 == $this->settings[ $name ] ) {
 
-            $message        = esc_html_x( 'Payment not booked in Run my Accounts. Payment method is excluded for payment booking.', 'Order Note', 'rma-wc');
+            $message        = esc_html_x( 'Payment not booked in Run my Accounts. Payment method is excluded for payment booking.', 'Order Note', 'run-my-accounts-for-woocommerce');
             // add order note
             $order->add_order_note( $message );
 
@@ -188,7 +160,7 @@ class RMA_WC_Payment {
             'payment' => array(
                 'id'             => $this->order_id,
                 'invnumber'      => $this->invoice,
-                'datepaid'       => date(DATE_RFC3339), //$order->get_date_paid() ,//date( DateTime::RFC3339, time() ),
+                'datepaid'       => gmdate(DATE_RFC3339), //$order->get_date_paid() ,//gmdate( DateTime::RFC3339, time() ),
                 'amount_paid'    => $order->get_total(),
                 'source'         => 'Shop-Payment',
                 'memo'           => $order->get_payment_method_title(),

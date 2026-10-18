@@ -144,6 +144,7 @@ function calculate_next_collective_invoice_date() {
 
         const data = {
             'action': 'next_invoice_date',
+            'nonce': ( window.rmaWcAdmin || {} ).nextInvoiceDateNonce,
             'period': invoicePeriod,
             'weekday': invoiceWeekday
         };
@@ -151,15 +152,21 @@ function calculate_next_collective_invoice_date() {
         // since 2.8 ajaxurl is always defined in the admin header and points to admin-ajax.php
         jQuery.post(ajaxurl, data, function ( response ) {
 
-            if ( '' !== response ) {
+            if ( response && response.success ) {
 
-                jQuery('p.next-invoice-date').text( response );
+                jQuery('p.next-invoice-date').text( response.data.date );
 
-            } else {
+            } else if ( response && response.data && response.data.message ) {
 
-                // show error message
-                alert(response.data.message);
+                alert( response.data.message );
 
+            }
+
+        }).fail( function ( xhr ) {
+
+            const message = xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message;
+            if ( message ) {
+                alert( message );
             }
 
         });
