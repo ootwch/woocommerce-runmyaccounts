@@ -226,21 +226,20 @@ class RMA_WC_Invoice {
 		const STATUS_SYNC_PAGE_SIZE = 40;
 
 		/**
-		 * Seconds spent writing statuses in one cron request, after the API download.
-		 *
-		 * WordPress treats the cron lock as expired after 60 seconds. Staying under that
-		 * for the write loop, then continuing on the next tick, avoids a mix of fresh and
-		 * old statuses when the request is stopped.
-		 */
-		const STATUS_SYNC_APPLY_BUDGET = 40;
-
-		/**
 		 * Seconds of empty months fetched in one request before the next tick continues the gap.
 		 *
 		 * An empty month is a small response, so the walk requests the previous month immediately.
 		 * The cap leaves time to write a month that does contain invoices.
 		 */
 		const STATUS_SYNC_EMPTY_BUDGET = 15;
+
+		/**
+		 * Seconds of months fetched and applied in one cron wake.
+		 *
+		 * The next month used to wait for the following cron run. Production cron does not
+		 * run every minute, so one wake now continues while this budget remains.
+		 */
+		const STATUS_SYNC_RUN_BUDGET = 120;
 
 		/**
 		 * Fetch invoice statuses and write them onto matching orders.
@@ -272,7 +271,7 @@ class RMA_WC_Invoice {
 		 *
 		 * The first walk starts at today and continues until the oldest invoiced order.
 		 * Once a day the walk goes back to 1 January of the previous year, and further when an unpaid invoice is older.
-		 * Empty months are requested again in the same tick until one has invoices or the empty-month budget runs out. A failed request retries that month.
+		 * One cron wake keeps fetching and applying earlier months for two minutes. Empty months are requested again immediately. A failed request retries that month.
 		 *
 		 * @return void
 		 */
@@ -305,6 +304,9 @@ class RMA_WC_Invoice {
 				);
 			}
 
+			$run_deadline = (int) $started_at + self::STATUS_SYNC_RUN_BUDGET;
+
+			while ( time() < $run_deadline ) {
 			if ( ! array_key_exists( 'statuses', $state ) ) {
 				$empty_deadline = (int) $started_at + self::STATUS_SYNC_EMPTY_BUDGET;
 				while ( true ) {
@@ -369,8 +371,11 @@ class RMA_WC_Invoice {
 			}
 
 			if ( empty( $state['statuses'] ) ) {
-				$this->advance_status_sync_month( $state );
-				return;
+				$state = $this->advance_status_sync_month( $state );
+				if ( null === $state ) {
+					return;
+				}
+				continue;
 			}
 
 			// Queued before any writes so a stopped request resumes instead of waiting for the next hour.
@@ -380,10 +385,9 @@ class RMA_WC_Invoice {
 				return;
 			}
 
-			$apply_deadline = time() + self::STATUS_SYNC_APPLY_BUDGET;
-			$hard_deadline  = (int) $started_at + 240;
+			$month_done = false;
 
-			while ( time() < $apply_deadline && time() < $hard_deadline ) {
+			while ( time() < $run_deadline ) {
 				$this->touch_status_sync_lock();
 				$this->maybe_extend_cron_lock( $started_at );
 				$found = $this->apply_invoice_status_page( $state['statuses'], (int) $state['page'] );
@@ -392,11 +396,22 @@ class RMA_WC_Invoice {
 					return;
 				}
 				if ( $found < self::STATUS_SYNC_PAGE_SIZE ) {
-					$this->advance_status_sync_month( $state );
-					return;
+					$month_done = true;
+					break;
 				}
 				$state['page'] = (int) $state['page'] + 1;
 				$this->save_status_sync_state( $state );
+			}
+
+			if ( ! $month_done ) {
+				$this->schedule_status_sync_continuation();
+				return;
+			}
+
+			$state = $this->advance_status_sync_month( $state );
+			if ( null === $state ) {
+				return;
+			}
 			}
 
 			$this->schedule_status_sync_continuation();
@@ -456,20 +471,20 @@ class RMA_WC_Invoice {
 		 * Step to the previous month, or record the walk as finished.
 		 *
 		 * @param array<string,mixed> $state Sync state for the month just applied.
-		 * @return void
+		 * @return array<string,mixed>|null Next month, or null when the walk is finished.
 		 */
 		private function advance_status_sync_month( array $state ) {
 			$next = isset( $state['next'] ) ? (string) $state['next'] : '';
 			if ( '' === $next || null === RMA_WC_API::invoice_status_month_window( $next, $state['floor'], $state['until'] ) ) {
 				$this->finish_status_sync_walk( $state );
-				return;
+				return null;
 			}
 
 			unset( $state['statuses'], $state['page'] );
 			$state['cursor']   = $next;
 			$state['progress'] = time();
 			$this->save_status_sync_state( $state );
-			$this->schedule_status_sync_continuation();
+			return $state;
 		}
 
 		/**
