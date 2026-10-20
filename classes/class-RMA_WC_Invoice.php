@@ -211,7 +211,7 @@ class RMA_WC_Invoice {
 		const STATUS_SYNC_STALE_AFTER = 2 * HOUR_IN_SECONDS;
 
 		/**
-		 * Seconds between runs that download every invoice instead of only the unpaid window.
+		 * Seconds between walks back to 1 January of the previous year, so a reopened invoice from that span is seen.
 		 */
 		const STATUS_SYNC_FULL_EVERY = DAY_IN_SECONDS;
 
@@ -233,6 +233,14 @@ class RMA_WC_Invoice {
 		 * old statuses when the request is stopped.
 		 */
 		const STATUS_SYNC_APPLY_BUDGET = 40;
+
+		/**
+		 * Seconds of empty months fetched in one request before the next tick continues the gap.
+		 *
+		 * An empty month is a small response, so the walk requests the previous month immediately.
+		 * The cap leaves time to write a month that does contain invoices.
+		 */
+		const STATUS_SYNC_EMPTY_BUDGET = 15;
 
 		/**
 		 * Fetch invoice statuses and write them onto matching orders.
@@ -260,7 +268,11 @@ class RMA_WC_Invoice {
 		}
 
 		/**
-		 * Download statuses when needed, then apply them in short pages.
+		 * Download one month of statuses, write them onto matching orders, then step backward.
+		 *
+		 * The first walk starts at today and continues until the oldest invoiced order.
+		 * Once a day the walk goes back to 1 January of the previous year, and further when an unpaid invoice is older.
+		 * Empty months are requested again in the same tick until one has invoices or the empty-month budget runs out. A failed request retries that month.
 		 *
 		 * @return void
 		 */
@@ -271,10 +283,8 @@ class RMA_WC_Invoice {
 
 			$state = $this->load_status_sync_state();
 			if ( null === $state ) {
-				$full = ( time() - self::get_status_sync_result()['full_at'] ) > self::STATUS_SYNC_FULL_EVERY;
-				$from = $full ? '1900-01-01' : $this->oldest_unpaid_invoice_date();
-				if ( null === $from ) {
-					// Every invoiced order is already PAID; the daily full run still catches reversals.
+				$state = $this->begin_status_sync_state();
+				if ( null === $state ) {
 					$this->record_status_sync(
 						array(
 							'completed_at' => time(),
@@ -283,27 +293,84 @@ class RMA_WC_Invoice {
 					);
 					return;
 				}
+				$this->save_status_sync_state( $state );
+				$this->log_status_sync(
+					'info',
+					sprintf(
+						/* translators: 1: start date, 2: earliest date the walk will request */
+						__( 'Invoice status walk started from %1$s back to %2$s.', 'rma-wc' ),
+						$state['cursor'],
+						$state['floor']
+					)
+				);
+			}
 
-				$this->maybe_extend_cron_lock( $started_at );
-				$statuses = $this->read_invoice_status_map( $from );
-				if ( null === $statuses ) {
-					$error = RMA_WC_API::$last_invoice_status_error;
-					$this->record_status_sync(
-						array(
-							'failed_at' => time(),
-							'error'     => '' !== $error ? wp_html_excerpt( $error, 300, '…' ) : __( 'Invoice Status could not be read.', 'rma-wc' ),
+			if ( ! array_key_exists( 'statuses', $state ) ) {
+				$empty_deadline = (int) $started_at + self::STATUS_SYNC_EMPTY_BUDGET;
+				while ( true ) {
+					$this->touch_status_sync_lock();
+					$this->maybe_extend_cron_lock( $started_at );
+					$window = RMA_WC_API::invoice_status_month_window( $state['cursor'], $state['floor'], $state['until'] );
+					if ( null === $window ) {
+						$this->finish_status_sync_walk( $state );
+						return;
+					}
+
+					$statuses = $this->read_invoice_status_map( $window['from'], $window['to'] );
+					if ( null === $statuses ) {
+						$error = RMA_WC_API::$last_invoice_status_error;
+						$this->log_status_sync(
+							'failed',
+							sprintf(
+								/* translators: 1: period start, 2: period end */
+								__( 'Invoice statuses for %1$s to %2$s could not be read.', 'rma-wc' ),
+								$window['from'],
+								$window['to']
+							)
+						);
+						$this->record_status_sync(
+							array(
+								'failed_at' => time(),
+								'error'     => '' !== $error ? wp_html_excerpt( $error, 300, '…' ) : __( 'Invoice Status could not be read.', 'rma-wc' ),
+							)
+						);
+						$this->schedule_status_sync_continuation( self::STATUS_SYNC_RETRY_AFTER );
+						return;
+					}
+
+					$this->log_status_sync(
+						'info',
+						sprintf(
+							/* translators: 1: period start, 2: period end, 3: number of invoices */
+							__( 'Invoice statuses for %1$s to %2$s: %3$d.', 'rma-wc' ),
+							$window['from'],
+							$window['to'],
+							count( $statuses )
 						)
 					);
-					$this->schedule_status_sync_continuation( self::STATUS_SYNC_RETRY_AFTER );
-					return;
+
+					$state['next']     = $window['next'];
+					$state['progress'] = time();
+					if ( ! empty( $statuses ) || time() >= $empty_deadline ) {
+						$state['statuses'] = $statuses;
+						$state['page']     = 1;
+						$this->save_status_sync_state( $state );
+						break;
+					}
+
+					$next = $window['next'];
+					if ( null === RMA_WC_API::invoice_status_month_window( $next, $state['floor'], $state['until'] ) ) {
+						$this->finish_status_sync_walk( $state );
+						return;
+					}
+					$state['cursor'] = $next;
+					$this->save_status_sync_state( $state );
 				}
-				$state = array(
-					'statuses' => $statuses,
-					'page'     => 1,
-					'started'  => time(),
-					'full'     => $full,
-				);
-				$this->save_status_sync_state( $state );
+			}
+
+			if ( empty( $state['statuses'] ) ) {
+				$this->advance_status_sync_month( $state );
+				return;
 			}
 
 			// Queued before any writes so a stopped request resumes instead of waiting for the next hour.
@@ -325,16 +392,7 @@ class RMA_WC_Invoice {
 					return;
 				}
 				if ( $found < self::STATUS_SYNC_PAGE_SIZE ) {
-					delete_option( self::STATUS_SYNC_STATE );
-					$this->clear_status_sync_continuation();
-					$result = array(
-						'completed_at' => time(),
-						'error'        => '',
-					);
-					if ( ! empty( $state['full'] ) ) {
-						$result['full_at'] = (int) $state['started'];
-					}
-					$this->record_status_sync( $result );
+					$this->advance_status_sync_month( $state );
 					return;
 				}
 				$state['page'] = (int) $state['page'] + 1;
@@ -342,6 +400,112 @@ class RMA_WC_Invoice {
 			}
 
 			$this->schedule_status_sync_continuation();
+		}
+
+		/**
+		 * Where a new walk starts, or null when nothing is due.
+		 *
+		 * Before the first completed walk, the floor is the oldest invoiced order.
+		 * Once a day after that, the floor is 1 January of the previous year, extended back to the oldest unpaid invoice.
+		 * Other hourly runs stop at the oldest unpaid invoice.
+		 *
+		 * @return array<string,mixed>|null
+		 */
+		private function begin_status_sync_state() {
+			$until  = gmdate( 'Y-m-d', time() + DAY_IN_SECONDS );
+			$result = self::get_status_sync_result();
+			$cursor = gmdate( 'Y-m-d' );
+
+			if ( $result['full_at'] <= 0 ) {
+				$floor = $this->oldest_invoiced_order_date();
+				if ( null === $floor ) {
+					return null;
+				}
+
+				return array(
+					'cursor'    => $cursor,
+					'floor'     => $floor,
+					'until'     => $until,
+					'mark_full' => true,
+					'started'   => time(),
+					'progress'  => time(),
+				);
+			}
+
+			$daily  = ( time() - $result['full_at'] ) > self::STATUS_SYNC_FULL_EVERY;
+			$unpaid = $this->oldest_unpaid_invoice_date();
+			$floor  = $daily ? ( (int) gmdate( 'Y' ) - 1 ) . '-01-01' : null;
+			if ( null !== $unpaid && ( null === $floor || $unpaid < $floor ) ) {
+				$floor = $unpaid;
+			}
+			if ( null === $floor ) {
+				return null;
+			}
+
+			return array(
+				'cursor'    => $cursor,
+				'floor'     => $floor,
+				'until'     => $until,
+				'mark_full' => $daily,
+				'started'   => time(),
+				'progress'  => time(),
+			);
+		}
+
+		/**
+		 * Step to the previous month, or record the walk as finished.
+		 *
+		 * @param array<string,mixed> $state Sync state for the month just applied.
+		 * @return void
+		 */
+		private function advance_status_sync_month( array $state ) {
+			$next = isset( $state['next'] ) ? (string) $state['next'] : '';
+			if ( '' === $next || null === RMA_WC_API::invoice_status_month_window( $next, $state['floor'], $state['until'] ) ) {
+				$this->finish_status_sync_walk( $state );
+				return;
+			}
+
+			unset( $state['statuses'], $state['page'] );
+			$state['cursor']   = $next;
+			$state['progress'] = time();
+			$this->save_status_sync_state( $state );
+			$this->schedule_status_sync_continuation();
+		}
+
+		/**
+		 * Drop the in-progress walk and store its outcome.
+		 *
+		 * @param array<string,mixed> $state Sync state.
+		 * @return void
+		 */
+		private function finish_status_sync_walk( array $state ) {
+			$this->log_status_sync(
+				'info',
+				sprintf(
+					/* translators: %s: earliest invoice date included in this walk */
+					__( 'Invoice status walk finished. Covered invoices back to %s.', 'rma-wc' ),
+					isset( $state['floor'] ) ? (string) $state['floor'] : ''
+				)
+			);
+			delete_option( self::STATUS_SYNC_STATE );
+			$this->clear_status_sync_continuation();
+			$result = array(
+				'completed_at' => time(),
+				'error'        => '',
+			);
+			if ( ! empty( $state['mark_full'] ) ) {
+				$result['full_at'] = isset( $state['started'] ) ? (int) $state['started'] : time();
+			}
+			$this->record_status_sync( $result );
+		}
+
+		/**
+		 * Earliest invoiced order, or null when no order has an invoice.
+		 *
+		 * @return string|null yyyy-MM-dd.
+		 */
+		private function oldest_invoiced_order_date() {
+			return $this->oldest_invoice_order_date( false );
 		}
 
 		/**
@@ -353,8 +517,43 @@ class RMA_WC_Invoice {
 		 * @return string|null yyyy-MM-dd.
 		 */
 		private function oldest_unpaid_invoice_date() {
+			return $this->oldest_invoice_order_date( true );
+		}
+
+		/**
+		 * Creation date of the oldest order that has an invoice.
+		 *
+		 * @param bool $unpaid_only Limit the query to orders that are not marked PAID.
+		 * @return string|null yyyy-MM-dd.
+		 */
+		private function oldest_invoice_order_date( $unpaid_only ) {
 			if ( ! function_exists( 'wc_get_orders' ) ) {
-				return '1900-01-01';
+				return null;
+			}
+
+			$meta_query = array(
+				array(
+					'key'     => '_rma_invoice',
+					'compare' => 'EXISTS',
+				),
+			);
+			if ( $unpaid_only ) {
+				$meta_query = array(
+					'relation' => 'AND',
+					$meta_query[0],
+					array(
+						'relation' => 'OR',
+						array(
+							'key'     => '_rma_invoice_status',
+							'compare' => 'NOT EXISTS',
+						),
+						array(
+							'key'     => '_rma_invoice_status',
+							'value'   => 'PAID',
+							'compare' => '!=',
+						),
+					),
+				);
 			}
 
 			$ids = wc_get_orders(
@@ -364,65 +563,59 @@ class RMA_WC_Invoice {
 					'order'      => 'ASC',
 					'status'     => 'any',
 					'return'     => 'ids',
-					'meta_query' => array(
-						'relation' => 'AND',
-						array(
-							'key'     => '_rma_invoice',
-							'compare' => 'EXISTS',
-						),
-						array(
-							'relation' => 'OR',
-							array(
-								'key'     => '_rma_invoice_status',
-								'compare' => 'NOT EXISTS',
-							),
-							array(
-								'key'     => '_rma_invoice_status',
-								'value'   => 'PAID',
-								'compare' => '!=',
-							),
-						),
-					),
+					'meta_query' => $meta_query,
 				)
 			);
 
-			if ( ! is_array( $ids ) ) {
-				return '1900-01-01';
-			}
-			if ( empty( $ids ) ) {
+			if ( ! is_array( $ids ) || empty( $ids ) ) {
 				return null;
 			}
 
 			$order   = wc_get_order( reset( $ids ) );
 			$created = $order ? $order->get_date_created() : null;
 			if ( ! $created ) {
-				return '1900-01-01';
+				return null;
 			}
 
 			return gmdate( 'Y-m-d', $created->getTimestamp() - DAY_IN_SECONDS );
 		}
 
 		/**
-		 * Read invoice statuses from Run my Accounts. Returns null and logs when the call fails.
+		 * Write one invoice-status sync line to the Run my Accounts log.
+		 *
+		 * `failed` is a warning. `error` would also send the outage email, and the API call already does that.
+		 *
+		 * @param string $status  `info` or `failed`.
+		 * @param string $message Translated log message.
+		 * @return void
+		 */
+		private function log_status_sync( $status, $message ) {
+			$log_values = array(
+				'status'     => $status,
+				'section_id' => '',
+				'section'    => esc_html_x( 'Get Invoice Status', 'Log Section', 'rma-wc' ),
+				'mode'       => RMA_WC_API::rma_mode(),
+				'message'    => $message,
+			);
+
+			RMA_WC_API::write_log( $log_values );
+		}
+
+		/**
+		 * Read invoice statuses from Run my Accounts. Returns null when the call fails.
+		 *
+		 * An empty array means the month has no invoices.
 		 *
 		 * @param string $from yyyy-MM-dd lower bound for the invoice date.
+		 * @param string $to   yyyy-MM-dd upper bound for the invoice date.
 		 * @return array<string,string>|null
 		 */
-		private function read_invoice_status_map( $from ) {
+		private function read_invoice_status_map( $from, $to ) {
 			$api      = new RMA_WC_API();
-			$statuses = $api->get_invoice_status( $from );
+			$statuses = $api->get_invoice_status( $from, $to );
 			unset( $api );
 
 			if ( ! is_array( $statuses ) ) {
-				$log_values = array(
-					'status'     => 'error',
-					'section_id' => '',
-					'section'    => esc_html_x( 'Get Invoice Status', 'Log Section', 'rma-wc' ),
-					'mode'       => RMA_WC_API::rma_mode(),
-					'message'    => esc_html_x( 'Invoice Status could not be read.', 'Log Section', 'rma-wc' ),
-				);
-
-				RMA_WC_API::write_log( $log_values );
 				return null;
 			}
 
@@ -441,6 +634,16 @@ class RMA_WC_Invoice {
 		 * @return int Number of orders read, or -1 when the query failed.
 		 */
 		private function apply_invoice_status_page( array $statuses, $page ) {
+			$invoice_numbers = array();
+			foreach ( array_keys( $statuses ) as $invoice_number ) {
+				if ( is_scalar( $invoice_number ) && '' !== trim( (string) $invoice_number ) ) {
+					$invoice_numbers[] = (string) $invoice_number;
+				}
+			}
+			if ( empty( $invoice_numbers ) ) {
+				return 0;
+			}
+
 			$orders = wc_get_orders(
 				array(
 					'limit'      => self::STATUS_SYNC_PAGE_SIZE,
@@ -452,7 +655,8 @@ class RMA_WC_Invoice {
 					'meta_query' => array(
 						array(
 							'key'     => '_rma_invoice',
-							'compare' => 'EXISTS',
+							'value'   => $invoice_numbers,
+							'compare' => 'IN',
 						),
 					),
 				)
@@ -492,16 +696,22 @@ class RMA_WC_Invoice {
 		 */
 		private function load_status_sync_state() {
 			$state = get_option( self::STATUS_SYNC_STATE, array() );
-			if ( ! is_array( $state ) || empty( $state['statuses'] ) || ! is_array( $state['statuses'] ) ) {
+			if ( ! is_array( $state ) || empty( $state['cursor'] ) || empty( $state['floor'] ) || empty( $state['until'] ) ) {
+				if ( is_array( $state ) && ! empty( $state ) ) {
+					delete_option( self::STATUS_SYNC_STATE );
+				}
 				return null;
 			}
 
-			$started = isset( $state['started'] ) ? (int) $state['started'] : 0;
-			if ( $started <= 0 || ( time() - $started ) > 6 * HOUR_IN_SECONDS ) {
+			$progress = isset( $state['progress'] ) ? (int) $state['progress'] : 0;
+			if ( $progress <= 0 || ( time() - $progress ) > 6 * HOUR_IN_SECONDS ) {
 				delete_option( self::STATUS_SYNC_STATE );
 				return null;
 			}
 
+			if ( array_key_exists( 'statuses', $state ) && ! is_array( $state['statuses'] ) ) {
+				unset( $state['statuses'] );
+			}
 			$state['page'] = max( 1, (int) ( isset( $state['page'] ) ? $state['page'] : 1 ) );
 			return $state;
 		}

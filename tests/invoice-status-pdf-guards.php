@@ -73,6 +73,17 @@ rma_guard_same( null, RMA_WC_API::matching_invoice_status( 'INV-9', $statuses ),
 rma_guard_same( null, RMA_WC_API::matching_invoice_status( '', $statuses ), 'empty stored invoice is not updated' );
 rma_guard_same( null, RMA_WC_API::matching_invoice_status( 'INV-1', array( 'INV-1' => '  ' ) ), 'blank status is not stored' );
 
+$current_month = RMA_WC_API::invoice_status_month_window( '2026-10-20', '2024-03-15', '2026-10-21' );
+rma_guard_same( '2026-10-01', $current_month['from'], 'current month starts on the first' );
+rma_guard_same( '2026-10-21', $current_month['to'], 'current month stops at the upper bound' );
+rma_guard_same( '2026-09-30', $current_month['next'], 'next cursor is the previous month' );
+
+$floor_month = RMA_WC_API::invoice_status_month_window( '2024-03-20', '2024-03-15', '2026-10-21' );
+rma_guard_same( '2024-03-15', $floor_month['from'], 'floor month starts on the floor' );
+rma_guard_same( '2024-03-31', $floor_month['to'], 'floor month keeps the end of the month' );
+rma_guard_same( null, RMA_WC_API::invoice_status_month_window( '2024-02-29', '2024-03-15', '2026-10-21' ), 'the month before the floor is not requested' );
+rma_guard_same( null, RMA_WC_API::invoice_status_month_window( 'not-a-date', '2024-03-15', '2026-10-21' ), 'an invalid cursor is not requested' );
+
 rma_guard_same( true, RMA_WC_API::is_pdf_content_type( 'application/pdf' ), 'exact PDF content type' );
 rma_guard_same( true, RMA_WC_API::is_pdf_content_type( 'application/pdf; charset=binary' ), 'PDF content type with a parameter' );
 rma_guard_same( true, RMA_WC_API::is_pdf_content_type( 'Application/PDF; charset=binary' ), 'PDF content type is case-insensitive' );

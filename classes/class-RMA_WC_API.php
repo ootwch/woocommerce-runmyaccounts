@@ -1716,10 +1716,64 @@ if ( !class_exists('RMA_WC_API') ) {
 		}
 
 		/**
+		 * One calendar month of a backward status walk, clipped to the floor and the upper bound.
+		 *
+		 * `next` is the last day of the previous month. Null means the cursor is already before the floor.
+		 *
+		 * @param string $cursor Y-m-d inside the month to fetch.
+		 * @param string $floor  Y-m-d. Days before this are not requested.
+		 * @param string $until  Y-m-d upper bound, inclusive.
+		 * @return array{from:string,to:string,next:string}|null
+		 */
+		public static function invoice_status_month_window( $cursor, $floor, $until ) {
+			$cursor_day = self::api_date_immutable( $cursor );
+			$floor_day  = self::api_date_immutable( $floor );
+			$until_day  = self::api_date_immutable( $until );
+			if ( ! $cursor_day || ! $floor_day || ! $until_day ) {
+				return null;
+			}
+
+			$month_start = $cursor_day->modify( 'first day of this month' );
+			$month_end   = $cursor_day->modify( 'last day of this month' );
+			$from        = $month_start > $floor_day ? $month_start : $floor_day;
+			$to          = $month_end < $until_day ? $month_end : $until_day;
+			if ( $from > $to ) {
+				return null;
+			}
+
+			return array(
+				'from' => $from->format( 'Y-m-d' ),
+				'to'   => $to->format( 'Y-m-d' ),
+				'next' => $month_start->modify( '-1 day' )->format( 'Y-m-d' ),
+			);
+		}
+
+		/**
+		 * Parse a Y-m-d date. Returns null when the value is not that calendar day.
+		 *
+		 * @param mixed $value Raw date.
+		 * @return DateTimeImmutable|null UTC midnight.
+		 */
+		private static function api_date_immutable( $value ) {
+			$normalized = self::normalize_api_date( $value );
+			if ( '' === $normalized ) {
+				return null;
+			}
+
+			$date = DateTimeImmutable::createFromFormat( '!Y-m-d', $normalized, new DateTimeZone( 'UTC' ) );
+			if ( ! $date || $date->format( 'Y-m-d' ) !== $normalized ) {
+				return null;
+			}
+
+			return $date;
+		}
+
+		/**
 		 * Invoice number => status for invoices dated within the window.
 		 *
 		 * Without `from`, Run my Accounts returns only invoices after the accounting
 		 * close date, and without `to` only up to today in its own timezone.
+		 * An empty list is a successful response: a quiet month must not fail the walk.
 		 *
 		 * @param string $from yyyy-MM-dd.
 		 * @param string $to   yyyy-MM-dd.
@@ -1813,11 +1867,6 @@ if ( !class_exists('RMA_WC_API') ) {
 					continue;
 				}
 				$status_array[ $invoice_number ] = $status;
-			}
-
-			if ( empty( $status_array ) ) {
-				self::$last_invoice_status_error = __( 'Run my Accounts returned no invoices.', 'rma-wc' );
-				return false;
 			}
 
 			return $status_array;
