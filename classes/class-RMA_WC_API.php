@@ -188,6 +188,7 @@ if ( !class_exists('RMA_WC_API') ) {
 		 */
 		public static function get_caller_url(): string
 		{
+			self::ensure_rma_constants();
 			// Set caller URL
 			if( RMA_CALLERSANDBOX ) { // Caller URL for sandbox
 				$url = 'https://service.int.runmyaccounts.com/api/latest/clients/'; // End with / !
@@ -2613,7 +2614,23 @@ if ( !class_exists('RMA_WC_API') ) {
 		 */
 		public static function rma_mode(): string
 		{
+			self::ensure_rma_constants();
 			return RMA_CALLERSANDBOX ? 'Test' : 'Live' ;
+		}
+
+		/**
+		 * Load the RMA settings constants before a static caller reads them.
+		 *
+		 * WP-CLI runs a single cron hook, so nothing else has constructed this class yet.
+		 *
+		 * @return void
+		 */
+		private static function ensure_rma_constants(): void {
+			if ( defined( 'RMA_CALLERSANDBOX' ) ) {
+				return;
+			}
+
+			new self();
 		}
 
 		/**
