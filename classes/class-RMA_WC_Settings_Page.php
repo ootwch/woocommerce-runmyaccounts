@@ -40,7 +40,7 @@ if ( !class_exists('RMA_WC_Settings_Page') ) {
 
 		private const LIST_CACHE_TTL         = HOUR_IN_SECONDS;
 		private const LIST_FAILURE_CACHE_TTL = 5 * MINUTE_IN_SECONDS;
-		private const LIST_REQUEST_TIMEOUT   = 15;
+		private const LIST_REQUEST_TIMEOUT   = 120;
 		private const LIST_TYPES             = array( 'customers', 'parts' );
 		private const REFRESH_LISTS_ACTION   = 'rma_wc_refresh_lists';
 
